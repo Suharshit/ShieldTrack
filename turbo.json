@@ -17,5 +17,10 @@
       "cache": false,
       "persistent": true
     }
+  },
+  "pipeline": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+    "dev": { "cache": false, "persistent": true },
+    "start": { "cache": false, "persistent": true }
   }
 }

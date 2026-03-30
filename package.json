@@ -1,24 +1,15 @@
 {
   "name": "shieldtrack",
   "private": true,
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "dev:admin": "turbo run dev --filter=shield-admin",
+    "dev:mobile": "turbo run start --filter=mobile",
+    "dev:api": "turbo run dev --filter=api",
+    "build": "turbo run build"
   },
   "devDependencies": {
-    "prettier": "^3.7.4",
-    "turbo": "^2.8.21",
-    "typescript": "5.9.2"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "packageManager": "npm@11.12.1",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
+    "turbo": "latest",
+    "typescript": "^5.0.0"
+  }
 }
