@@ -1,0 +1,26 @@
+name: Clean And Cache Clean
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+jobs:
+  clean-cache-clean:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run clean and cache clean
+        run: npm run clean:all

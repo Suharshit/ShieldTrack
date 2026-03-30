@@ -1,8 +1,15 @@
 {
   "name": "shieldtrack",
   "private": true,
+  "packageManager": "npm@11.12.1",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
+    "lint": "npm run lint -w apps/shield-admin",
+    "type-check": "npm run check-types -w apps/mobile && npm run check-types -w apps/api && npm run check-types -w packages/types && npm run check-types -w packages/utils",
+    "clean": "node ./scripts/clean.js",
+    "cache:clean": "node ./scripts/cache-clean.js",
+    "clean:all": "npm run clean && npm run cache:clean",
+    "validate": "node ./scripts/validate.js",
     "dev:admin": "turbo run dev --filter=shield-admin",
     "dev:mobile": "turbo run start --filter=mobile",
     "dev:api": "turbo run dev --filter=api",
