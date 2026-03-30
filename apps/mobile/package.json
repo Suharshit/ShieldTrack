@@ -21,8 +21,8 @@
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-maps": "1.20.1",
-    "@shieldtrack/types": "*",
-    "@shieldtrack/utils": "*"
+    "@shieldtrack/types": "workspace:*",
+    "@shieldtrack/utils": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
