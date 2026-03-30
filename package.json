@@ -10,7 +10,7 @@
     "cache:clean": "node ./scripts/cache-clean.js",
     "clean:all": "npm run clean && npm run cache:clean",
     "validate": "node ./scripts/validate.js",
-    "dev:admin": "turbo run dev --filter=shield-admin",
+    "dev:admin": "npm run dev -w apps/shield-admin",
     "dev:mobile": "turbo run start --filter=mobile",
     "dev:api": "turbo run dev --filter=api",
     "build": "turbo run build"
