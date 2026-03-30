@@ -1,7 +1,7 @@
 {
   "name": "shieldtrack",
   "private": true,
-  "packageManager": "pnpm@9.15.1",
+  "packageManager": "pnpm@10.33.0",
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "preinstall": "npx only-allow pnpm",
@@ -18,11 +18,11 @@
     "build": "pnpm exec turbo run build"
   },
   "engines": {
-    "node": ">=20",
-    "pnpm": ">=9"
+    "node": ">=18",
+    "pnpm": ">=10.33.0"
   },
   "devDependencies": {
     "turbo": "latest",
-    "typescript": "^5.0.0"
+    "typescript": "^6.0.2"
   }
 }
