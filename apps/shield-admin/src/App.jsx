@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { createClient } from '@supabase/supabase-js';
 import 'leaflet/dist/leaflet.css';
@@ -18,7 +18,11 @@ const busIcon = new L.Icon({
 
 function FollowBus({ center }) {
   const map = useMap();
-  useEffect(() => { if (center) map.flyTo(center, map.getZoom(), { animate: true, duration: 1.5 }); }, [center]);
+  useEffect(() => {
+    if (center) {
+      map.flyTo(center, map.getZoom(), { animate: true, duration: 1.5 });
+    }
+  }, [center, map]);
   return null;
 }
 
@@ -84,10 +88,10 @@ export default function App() {
     }
   };
 
-  const fetchOfficialFleet = async () => {
+  const fetchOfficialFleet = useCallback(async () => {
     const { data } = await supabase.from('registered_fleet').select('*').eq('school_code', schoolCode);
     if (data) setFleetList(data);
-  };
+  }, [schoolCode]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -112,7 +116,7 @@ export default function App() {
       }).subscribe();
 
     return () => supabase.removeChannel(subscription);
-  }, [isAuthenticated, schoolCode]);
+  }, [fetchOfficialFleet, isAuthenticated, schoolCode]);
 
   const activeBuses = Object.values(buses);
   const activeBusPos = activeBuses.length > 0 ? [activeBuses[0].latitude, activeBuses[0].longitude] : [30.6942, 76.8606];
