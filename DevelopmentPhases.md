@@ -1,6 +1,9 @@
 # ShieldTrack — Complete Development Reference
 
-**Team:** Latency Zero | **Hackathon:** Eclipse 6.0
+> **Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603**
+
+![16%](https://progress-bar.xyz/16/?title=Project%20completed)
+
 **Stack:** Turborepo · Expo (mobile) · React/Vite (admin) · Node.js (API) · Supabase
 
 ---
@@ -1337,17 +1340,17 @@ export interface DeviationAlert {
 
 **Module 0.2 — Supabase Project** 🔴
 
-- [ ] Supabase project created, URL + anon key saved
-- [ ] Migration 001 — tenants
-- [ ] Migration 002 — users
-- [ ] Migration 003 — buses, routes, students, assignments
-- [ ] Migration 004 — trips
-- [ ] Migration 005 — bus_locations + RLS policy
-- [ ] Migration 006 — sos_events
-- [ ] Migration 007 — deviation_alerts
-- [ ] Migration 008 — geofence trigger deployed and tested
-- [ ] Migration 009 — ML prediction tables
-- [ ] Supabase Realtime enabled: `bus_locations`, `deviation_alerts`, `sos_events`, `bus_eta_predictions`, `bus_route_recommendations`
+- [x] Supabase project created, URL + anon key saved
+- [x] Migration 001 — tenants
+- [x] Migration 002 — users
+- [x] Migration 003 — buses, routes, students, assignments
+- [x] Migration 004 — trips
+- [x] Migration 005 — bus_locations + RLS policy
+- [x] Migration 006 — sos_events
+- [x] Migration 007 — deviation_alerts
+- [x] Migration 008 — geofence trigger deployed and tested
+- [x] Migration 009 — ML prediction tables
+- [x] Supabase Realtime enabled: `bus_locations`, `deviation_alerts`, `sos_events`, `bus_eta_predictions`, `bus_route_recommendations`
 
 **Module 0.3 — Shared Packages** 🔴
 
@@ -1360,7 +1363,7 @@ export interface DeviationAlert {
 - [ ] `apps/mobile/lib/supabase.ts` — AsyncStorage auth
 - [ ] `apps/api/src/lib/supabase.ts` — service role client
 - [ ] `apps/shield-admin/src/lib/supabase.ts` — anon client
-- [ ] `.env` files created for all three apps
+- [x] Central `.env` root file configured for all apps
 
 **Module 0.5 — Seed Data** 🟡
 
@@ -1450,8 +1453,8 @@ export interface DeviationAlert {
 
 **Module 2E — ML Backend Integration** 🟡
 
-- [ ] Python backend set up and running locally
-- [ ] Synthetic data generated and ETA model trained
+- [x] Python backend set up and running locally
+- [x] Synthetic data generated and ETA model trained
 - [ ] Active GPS simulate script updated to call `POST /predict/eta`
 - [ ] Parent app updated to subscribe to `bus_eta_predictions` table via Realtime
 - [ ] Admin panel updated to display alternative `bus_route_recommendations`
@@ -1605,9 +1608,9 @@ Phase 6 (Polish) — after Phase 0–3 are complete
 | Phase | Module                | Owner | Status | Blocked by |
 | ----- | --------------------- | ----- | ------ | ---------- |
 | 0     | 0.1 Monorepo          |       | `[~]`  | —          |
-| 0     | 0.2 Supabase schema   |       | `[ ]`  | —          |
+| 0     | 0.2 Supabase schema   |       | `[x]`  | —          |
 | 0     | 0.3 Shared packages   |       | `[x]`  | 0.2        |
-| 0     | 0.4 Supabase clients  |       | `[ ]`  | 0.2        |
+| 0     | 0.4 Supabase clients  |       | `[~]`  | 0.2        |
 | 0     | 0.5 Seed data         |       | `[ ]`  | 0.2        |
 | 1     | 1A API auth           |       | `[ ]`  | 0.4        |
 | 1     | 1B Mobile auth        |       | `[ ]`  | 1A         |
@@ -1616,7 +1619,7 @@ Phase 6 (Polish) — after Phase 0–3 are complete
 | 2     | 2B Driver trip screen |       | `[ ]`  | 2A         |
 | 2     | 2C Admin fleet map    |       | `[ ]`  | 1C, 0.2    |
 | 2     | 2D Parent live map    |       | `[ ]`  | 1B, 0.2    |
-| 2     | 2E ML Backend         |       | `[ ]`  | 0.2, 2A    |
+| 2     | 2E ML Backend         |       | `[~]`  | 0.2, 2A    |
 | 3     | 3A SOS API + FCM      |       | `[ ]`  | 1A         |
 | 3     | 3B SOS admin UI       |       | `[ ]`  | 3A, 2C     |
 | 3     | 3C SOS parent UI      |       |
