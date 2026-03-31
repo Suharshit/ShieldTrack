@@ -1,9 +1,9 @@
 const { spawnSync } = require('child_process');
 
 const checks = [
-  { name: 'lint', command: 'npm', args: ['run', 'lint'] },
-  { name: 'type-check', command: 'npm', args: ['run', 'type-check'] },
-  { name: 'clean-and-cache-clean', command: 'npm', args: ['run', 'clean:all'] },
+  { name: 'lint', command: 'pnpm', args: ['run', 'lint'] },
+  { name: 'type-check', command: 'pnpm', args: ['run', 'type-check'] },
+  { name: 'clean-and-cache-clean', command: 'pnpm', args: ['run', 'clean:all'] },
 ];
 
 for (const check of checks) {
