@@ -40,6 +40,7 @@ The table schemas expected in Supabase:
 
 import json
 import httpx
+from dataclasses import asdict
 from config import settings
 
 
@@ -104,18 +105,7 @@ async def write_route_recommendation(bus_id: str, routes: list) -> bool:
         "Prefer":        "return=minimal",
     }
     # Convert RouteOption dataclasses to plain dicts for JSON serialisation
-    routes_as_dicts = [
-        {
-            "route_id":          r.route_id,
-            "waypoints":         r.waypoints,
-            "distance_km":       r.distance_km,
-            "estimated_minutes": r.estimated_minutes,
-            "congestion_level":  r.congestion_level,
-            "is_recommended":    r.is_recommended,
-            "notes":             r.notes,
-        }
-        for r in routes
-    ]
+    routes_as_dicts = [asdict(r) for r in routes]
     payload = {
         "bus_id":      bus_id,
         "routes_json": routes_as_dicts,
@@ -169,7 +159,21 @@ async def get_latest_traffic_delay(
             r = await client.get(url, params=params)
             r.raise_for_status()
             data = r.json()
-            element = data["rows"][0]["elements"][0]
+            
+            if data.get("status") != "OK":
+                print(f"[maps] API returned non-OK status. Response: {data}")
+                return 2.0
+                
+            rows = data.get("rows", [])
+            if not rows or not rows[0].get("elements"):
+                print(f"[maps] Missing rows/elements in response. Response: {data}")
+                return 2.0
+                
+            element = rows[0]["elements"][0]
+            if "duration" not in element or "value" not in element["duration"]:
+                print(f"[maps] Missing duration.value in element. Response: {data}")
+                return 2.0
+                
             duration_secs = element["duration"]["value"]
             traffic_secs  = element.get("duration_in_traffic", {}).get("value", duration_secs)
             delay_minutes = max(0, (traffic_secs - duration_secs) / 60)

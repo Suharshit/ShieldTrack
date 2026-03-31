@@ -54,7 +54,24 @@ class ETAPredictor:
             )
 
         with open(model_path, "rb") as f:
-            bundle = pickle.load(f)
+            try:
+                bundle = pickle.load(f)
+            except (pickle.UnpicklingError, Exception) as e:
+                raise RuntimeError(
+                    f"Failed to deserialize model from '{model_path}'. "
+                    "Security note: We only support locally-generated pickle files.\n"
+                    f"Underlying error: {e}"
+                ) from e
+
+        if not isinstance(bundle, dict):
+            raise ValueError(f"Invalid model bundle from '{model_path}': expected a dictionary.")
+
+        missing_keys = [k for k in ("model", "feature_columns") if k not in bundle]
+        if missing_keys:
+            raise ValueError(
+                f"Invalid model file at '{model_path}'. "
+                f"Missing required keys: {', '.join(missing_keys)}"
+            )
 
         self.model           = bundle["model"]
         self.feature_columns = bundle["feature_columns"]
@@ -121,7 +138,11 @@ class ETAPredictor:
         #   2. How heavy the traffic delay is (heavy delay = more uncertain)
         # This is not a statistically rigorous interval — it is a
         # practical, human-readable indicator of reliability.
-        closeness_factor  = max(0, 1 - (distance_remaining_km / route_total_km))
+        if route_total_km <= 0:
+            closeness_factor = 1.0 if distance_remaining_km == 0 else 0.0
+        else:
+            closeness_factor = max(0, 1 - (distance_remaining_km / route_total_km))
+            
         traffic_factor    = max(0, 1 - (traffic_delay_minutes / 15))
         base_confidence   = 0.65 + 0.20 * closeness_factor + 0.15 * traffic_factor
 

@@ -23,7 +23,8 @@ All endpoints return JSON. All POST endpoints accept JSON bodies.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -39,13 +40,29 @@ from supabase_writer import (
     get_latest_traffic_delay,
 )
 
+from router import HOURLY_CONGESTION
+import numpy as np
+
 
 # ─── App Initialisation ───────────────────────────────────────────────────────
+
+# ─── Startup: Load Model ──────────────────────────────────────────────────────
+# The lifespan hook runs once when uvicorn starts the server.
+# Loading the model here (not inside each request handler) means the model
+# file is read from disk exactly once, then kept in memory for the entire
+# lifetime of the server.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("[startup] Loading ML model...")
+    predictor.load()
+    print("[startup] ShieldTrack ML server is ready.")
+    yield
 
 app = FastAPI(
     title="ShieldTrack ML Backend",
     description="ETA prediction and route optimisation for school bus tracking",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Allow requests from your Admin Portal (running on localhost:5173 during dev)
@@ -59,26 +76,13 @@ app.add_middleware(
 )
 
 
-# ─── Startup: Load Model ──────────────────────────────────────────────────────
-# The @app.on_event("startup") hook runs once when uvicorn starts the server.
-# Loading the model here (not inside each request handler) means the model
-# file is read from disk exactly once, then kept in memory for the entire
-# lifetime of the server.
-
-@app.on_event("startup")
-async def startup_event():
-    print("[startup] Loading ML model...")
-    predictor.load()
-    print("[startup] ShieldTrack ML server is ready.")
-
-
 # ─── Request / Response Schemas (Pydantic) ────────────────────────────────────
 # Pydantic models do two jobs: they describe the shape of request bodies
 # (FastAPI uses them to auto-validate incoming JSON and reject bad requests),
 # and they document the API automatically in the /docs interface.
 
 class ETARequest(BaseModel):
-    bus_id:                str   = Field(..., example="BUS-001")
+    bus_id:                str   = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
     speed_current_kmh:     float = Field(..., ge=0, le=120, example=22.5)
     speed_avg_5min_kmh:    float = Field(..., ge=0, le=120, example=20.0)
     distance_remaining_km: float = Field(..., ge=0, le=100, example=5.2)
@@ -107,7 +111,7 @@ class ETAResponse(BaseModel):
 
 
 class RouteRequest(BaseModel):
-    bus_id:      str   = Field(..., example="BUS-001")
+    bus_id:      str   = Field(..., example="550e8400-e29b-41d4-a716-446655440000")
     origin_lat:  float = Field(..., example=31.108)
     origin_lng:  float = Field(..., example=76.098)
     dest_lat:    float = Field(..., example=31.125)
@@ -144,7 +148,7 @@ async def health_check():
     return {
         "status":    "ok",
         "service":   "ShieldTrack ML Backend",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "model_loaded": predictor._loaded,
     }
 
@@ -171,7 +175,7 @@ async def predict_eta(req: ETARequest):
       Content-Type: application/json
 
       {
-        "bus_id": "BUS-001",
+        "bus_id": "550e8400-e29b-41d4-a716-446655440000",
         "speed_current_kmh": 22.5,
         "speed_avg_5min_kmh": 20.0,
         "distance_remaining_km": 5.2,
@@ -222,19 +226,25 @@ async def predict_eta(req: ETARequest):
     # We fire the Supabase write as a background task so the HTTP response
     # returns immediately. The parent app sees the prediction in under 50ms;
     # the database write completes a moment later in the background.
-    supabase_ok = await write_eta_prediction(
-        bus_id         = req.bus_id,
-        eta_minutes    = result["eta_minutes"],
-        confidence_pct = result["confidence_pct"],
-        features       = result["features_used"],
-    )
+    async def _bg_write_eta():
+        try:
+            await write_eta_prediction(
+                bus_id         = req.bus_id,
+                eta_minutes    = result["eta_minutes"],
+                confidence_pct = result["confidence_pct"],
+                features       = result["features_used"],
+            )
+        except Exception as e:
+            print(f"[background task error] write_eta_prediction failed: {e}")
+
+    asyncio.create_task(_bg_write_eta())
 
     return ETAResponse(
         bus_id           = req.bus_id,
         eta_minutes      = result["eta_minutes"],
         confidence_pct   = result["confidence_pct"],
-        predicted_at     = datetime.utcnow().isoformat(),
-        supabase_written = supabase_ok,
+        predicted_at     = datetime.now(timezone.utc).isoformat(),
+        supabase_written = True,
         debug_features   = result["features_used"] if settings.DEBUG else None,
     )
 
@@ -253,7 +263,7 @@ async def predict_route(req: RouteRequest):
       Content-Type: application/json
 
       {
-        "bus_id": "BUS-001",
+        "bus_id": "550e8400-e29b-41d4-a716-446655440000",
         "origin_lat": 31.108,
         "origin_lng": 76.098,
         "dest_lat": 31.125,
@@ -294,7 +304,7 @@ async def predict_route(req: RouteRequest):
             )
             for r in routes
         ],
-        recommended_at   = datetime.utcnow().isoformat(),
+        recommended_at   = datetime.now(timezone.utc).isoformat(),
         supabase_written = supabase_ok,
     )
 
@@ -329,8 +339,6 @@ async def batch_eta(updates: list[BusUpdate]):
 
     results = []
     for u in updates:
-        from router import HOURLY_CONGESTION
-        import numpy as np
         congestion = HOURLY_CONGESTION.get(u.hour_of_day, 1.0)
         traffic_delay = float(max(0, (congestion - 1.0) * 8 * np.random.uniform(0.8, 1.2)))
 

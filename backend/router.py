@@ -246,8 +246,8 @@ class RouteOptimizer:
                 distance_km       = round(km, 2),
                 estimated_minutes = round(minutes + stop_time, 1),
                 congestion_level  = self._congestion_label(hour_of_day),
-                is_recommended    = True,
-                notes             = "Fastest based on current traffic",
+                is_recommended    = False,
+                notes             = "Direct path based on current traffic",
             ))
 
         # ── Route B: Alternative via main road (slightly longer, more reliable) ─
@@ -279,8 +279,10 @@ class RouteOptimizer:
                 notes             = "Longer but avoids all peak-hour zones",
             ))
 
-        # Sort by estimated time (fastest first), recommended route always first
-        routes.sort(key=lambda r: (not r.is_recommended, r.estimated_minutes))
+        # Sort by estimated time (fastest first), and mark the optimal one as recommended
+        routes.sort(key=lambda r: r.estimated_minutes)
+        if routes:
+            routes[0].is_recommended = True
         return routes
 
     def _nearest_node(self, lat: float, lng: float) -> str:
