@@ -270,7 +270,7 @@ Open your Supabase project → **SQL Editor** → **New query**, and run the fol
 ```sql
 CREATE TABLE IF NOT EXISTS bus_eta_predictions (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  bus_id         TEXT NOT NULL,
+  bus_id         TEXT NOT NULL REFERENCES buses(id),
   eta_minutes    NUMERIC NOT NULL,
   confidence_pct NUMERIC NOT NULL,
   predicted_at   TIMESTAMPTZ DEFAULT now(),
@@ -289,7 +289,7 @@ CREATE INDEX IF NOT EXISTS idx_eta_predicted_at
 ```sql
 CREATE TABLE IF NOT EXISTS bus_route_recommendations (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  bus_id         TEXT NOT NULL,
+  bus_id         TEXT NOT NULL REFERENCES buses(id),
   recommended_at TIMESTAMPTZ DEFAULT now(),
   routes_json    JSONB NOT NULL
 );
@@ -561,7 +561,7 @@ Predicts how many minutes until a bus reaches its destination.
 
 ```json
 {
-  "bus_id": "BUS-001",
+  "bus_id": "550e8400-e29b-41d4-a716-446655440000",
   "speed_current_kmh": 22.5,
   "speed_avg_5min_kmh": 20.0,
   "distance_remaining_km": 5.2,
@@ -585,7 +585,7 @@ The last four fields are optional. If you omit `traffic_delay_minutes`, the serv
 
 ```json
 {
-  "bus_id":           "BUS-001",
+  "bus_id":           "550e8400-e29b-41d4-a716-446655440000",
   "eta_minutes":      16.5,
   "confidence_pct":   86.0,
   "predicted_at":     "2025-04-01T08:14:22",
@@ -608,7 +608,7 @@ Returns 2–3 ranked route options from the bus's current position to the school
 
 ```json
 {
-  "bus_id": "BUS-001",
+  "bus_id": "550e8400-e29b-41d4-a716-446655440000",
   "origin_lat": 31.108,
   "origin_lng": 76.098,
   "dest_lat": 31.125,
@@ -622,7 +622,7 @@ Returns 2–3 ranked route options from the bus's current position to the school
 
 ```json
 {
-  "bus_id": "BUS-001",
+  "bus_id": "550e8400-e29b-41d4-a716-446655440000",
   "routes": [
     {
       "route_id": "RT-A",
@@ -670,7 +670,7 @@ Predicts ETAs for multiple buses in a single request. Ideal for your simulation 
 ```json
 [
   {
-    "bus_id": "BUS-001",
+    "bus_id": "550e8400-e29b-41d4-a716-446655440000",
     "speed_current_kmh": 18,
     "speed_avg_5min_kmh": 17,
     "distance_remaining_km": 4.2,
@@ -681,7 +681,7 @@ Predicts ETAs for multiple buses in a single request. Ideal for your simulation 
     "trip_progress_pct": 65
   },
   {
-    "bus_id": "BUS-002",
+    "bus_id": "660e8400-e29b-41d4-a716-446655440001",
     "speed_current_kmh": 28,
     "speed_avg_5min_kmh": 26,
     "distance_remaining_km": 9.1,
@@ -699,8 +699,16 @@ Predicts ETAs for multiple buses in a single request. Ideal for your simulation 
 ```json
 {
   "predictions": [
-    { "bus_id": "BUS-001", "eta_minutes": 16.5, "confidence_pct": 89.4 },
-    { "bus_id": "BUS-002", "eta_minutes": 28.0, "confidence_pct": 84.7 }
+    {
+      "bus_id": "550e8400-e29b-41d4-a716-446655440000",
+      "eta_minutes": 16.5,
+      "confidence_pct": 89.4
+    },
+    {
+      "bus_id": "660e8400-e29b-41d4-a716-446655440001",
+      "eta_minutes": 28.0,
+      "confidence_pct": 84.7
+    }
   ],
   "count": 2
 }
