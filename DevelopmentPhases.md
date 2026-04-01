@@ -2,7 +2,7 @@
 
 > **Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603**
 
-![16%](https://progress-bar.xyz/16/?title=Project%20completed)
+![42%](https://progress-bar.xyz/42/?title=Project%20completed)
 
 **Stack:** Turborepo · Expo (mobile) · React/Vite (admin) · Node.js (API) · Supabase
 
@@ -53,7 +53,7 @@ ShieldTrack is a multi-tenant, real-time school bus tracking and fleet managemen
 
 ### 2.1 Admin flow
 
-```
+```mermaid
 Open browser → /login
     │
     ▼
@@ -71,11 +71,15 @@ Dashboard
     ├── Students   → Add students, link to route, link to parent accounts
     ├── Assignments→ Assign driver + bus + route for a date
     └── Reports    → Trip history · SOS log · Deviation log
+
+**Initial state hydration (on dashboard load):**
+- Fetch from `latest_bus_locations` view (one row per active bus)
+- Renders initial fleet pins without pulling historical GPS history
 ```
 
 **Live monitoring loop (continuous while dashboard is open):**
 
-```
+```mermaid
 Supabase Realtime subscription (tenant channel)
     │
     ├── bus_locations INSERT → update bus pin on map
@@ -87,7 +91,7 @@ Supabase Realtime subscription (tenant channel)
 
 ### 2.2 Driver flow
 
-```
+```mermaid
 Open mobile app
     │
     ▼
@@ -147,7 +151,7 @@ Trip screen
 
 ### 2.3 Parent flow
 
-```
+```mermaid
 Open mobile app
     │
     ▼
@@ -185,7 +189,7 @@ Notifications screen
 
 ### 2.4 GPS heartbeat pipeline (every 7 seconds)
 
-```
+```mermaid
 Driver device (expo-location background task)
     │
     INSERT bus_locations { trip_id, bus_id, tenant_id, lat, lng, speed_kmh, recorded_at }
@@ -214,7 +218,7 @@ Driver device (expo-location background task)
 
 ### 2.5 SOS pipeline
 
-```
+```mermaid
 Driver taps SOS button
     │
     ▼
@@ -244,7 +248,7 @@ Supabase Realtime broadcasts sos_events INSERT
 
 ### 3.1 Migrations (run in order)
 
-**001_tenants.sql**
+#### 001_tenants.sql
 
 ```sql
 CREATE TABLE tenants (
@@ -259,7 +263,7 @@ ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
 
 ---
 
-**002_users.sql**
+#### 002_users.sql
 
 ```sql
 CREATE TYPE user_role AS ENUM ('admin', 'driver', 'parent');
@@ -268,7 +272,6 @@ CREATE TABLE users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   email         TEXT UNIQUE,
-  password_hash TEXT NOT NULL,
   role          user_role NOT NULL,
   device_id     TEXT,            -- drivers only: locked to one phone
   student_id    UUID,            -- parents only: linked after student created
@@ -280,14 +283,13 @@ CREATE INDEX idx_users_role   ON users(role);
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- Admin can see all users in their tenant
-CREATE POLICY users_admin ON users
-  USING (tenant_id = (SELECT tenant_id FROM users WHERE id = auth.uid()));
+-- Users can read their own profile
+CREATE POLICY "users_read_own" ON users FOR SELECT USING (id = auth.uid());
 ```
 
 ---
 
-**003_buses_routes.sql**
+#### 003_buses_routes.sql
 
 ```sql
 CREATE TABLE buses (
@@ -297,6 +299,8 @@ CREATE TABLE buses (
   capacity    INT NOT NULL DEFAULT 40,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX buses_tenant_plate_unique ON buses (tenant_id, upper(plate_number));
 
 CREATE TABLE routes (
   id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -330,11 +334,25 @@ ALTER TABLE buses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trip_assignments ENABLE ROW LEVEL SECURITY;
+
+-- Admins can query all assets within their tenant
+CREATE POLICY "admin_all_buses" ON buses FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = buses.tenant_id)
+);
+CREATE POLICY "admin_all_routes" ON routes FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = routes.tenant_id)
+);
+CREATE POLICY "admin_all_students" ON students FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = students.tenant_id)
+);
+CREATE POLICY "admin_all_trip_assignments" ON trip_assignments FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = trip_assignments.tenant_id)
+);
 ```
 
 ---
 
-**004_trips.sql**
+#### 004_trips.sql
 
 ```sql
 CREATE TYPE trip_status AS ENUM ('active', 'completed');
@@ -359,7 +377,7 @@ ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
 
 ---
 
-**005_bus_locations.sql**
+#### 005_bus_locations.sql
 
 ```sql
 CREATE TABLE bus_locations (
@@ -378,6 +396,11 @@ CREATE INDEX idx_bus_locations_tenant ON bus_locations(tenant_id, recorded_at DE
 
 ALTER TABLE bus_locations ENABLE ROW LEVEL SECURITY;
 
+-- Admins can view all fleet locations within their tenant
+CREATE POLICY "admin_all_bus_locations" ON bus_locations FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = bus_locations.tenant_id)
+);
+
 -- Parents can only see locations for their assigned bus
 CREATE POLICY bus_locations_parent ON bus_locations
   FOR SELECT USING (
@@ -390,11 +413,28 @@ CREATE POLICY bus_locations_parent ON bus_locations
       LIMIT 1
     )
   );
+
 ```
 
 ---
 
-**006_sos_events.sql**
+#### 010_latest_locations_view.sql
+
+```sql
+-- Optimized fleet view: get only the latest location ping for each bus
+CREATE OR REPLACE VIEW latest_bus_locations AS
+SELECT DISTINCT ON (bus_id)
+  id, trip_id, bus_id, tenant_id, lat, lng, speed_kmh, recorded_at
+FROM
+  bus_locations
+ORDER BY
+  bus_id,
+  recorded_at DESC;
+```
+
+---
+
+#### 006_sos_events.sql
 
 ```sql
 CREATE TABLE sos_events (
@@ -414,7 +454,7 @@ ALTER TABLE sos_events ENABLE ROW LEVEL SECURITY;
 
 ---
 
-**007_deviation_alerts.sql**
+#### 007_deviation_alerts.sql
 
 ```sql
 CREATE TABLE deviation_alerts (
@@ -433,7 +473,7 @@ ALTER TABLE deviation_alerts ENABLE ROW LEVEL SECURITY;
 
 ---
 
-**008_geofence_trigger.sql**
+#### 008_geofence_trigger.sql
 
 ```sql
 CREATE OR REPLACE FUNCTION check_route_deviation()
@@ -492,7 +532,7 @@ CREATE TRIGGER on_location_insert
 
 ---
 
-**009_ml_predictions.sql**
+#### 009_ml_predictions.sql
 
 ```sql
 CREATE TABLE bus_eta_predictions (
@@ -556,7 +596,7 @@ CREATE POLICY "Admins can read route recommendations"
 
 ### 3.2 Entity relationship summary
 
-```
+```mermaid
 tenants
   └── users          (tenant_id FK) — role: admin | driver | parent
   └── buses          (tenant_id FK)
@@ -1350,6 +1390,7 @@ export interface DeviationAlert {
 - [x] Migration 007 — deviation_alerts
 - [x] Migration 008 — geofence trigger deployed and tested
 - [x] Migration 009 — ML prediction tables
+- [x] Migration 010 — latest_bus_locations optimization view
 - [x] Supabase Realtime enabled: `bus_locations`, `deviation_alerts`, `sos_events`, `bus_eta_predictions`, `bus_route_recommendations`
 
 **Module 0.3 — Shared Packages** 🔴
@@ -1400,12 +1441,12 @@ export interface DeviationAlert {
 - [ ] Device ID captured via `expo-device` on driver login
 - [ ] Device mismatch error shown
 
-**Module 1C — Admin Auth** 🔴
+**Module 1C — Admin Auth** 🟢
 
-- [ ] `apps/shield-admin/src/pages/Login.tsx` — email + password form
-- [ ] JWT stored in `localStorage`
-- [ ] `ProtectedRoute` wrapper component
-- [ ] Redirect to `/dashboard` on success
+- [x] `apps/shield-admin/src/components/LoginScreen.tsx` — Email + Password form
+- [x] Supabase Session handling (automatic persistence)
+- [x] Conditional rendering in `App.tsx` (replaces `ProtectedRoute`)
+- [x] Immediate state hydration on session detection
 
 ---
 
@@ -1434,12 +1475,13 @@ export interface DeviationAlert {
 - [ ] "End Route" button → `POST /trips/:id/end` → stops GPS task
 - [ ] `apps/mobile/app/(driver)/sos-confirm.tsx` — confirmation modal
 
-**Module 2C — Admin Fleet Map** 🔴
+**Module 2C — Admin Fleet Map** 🟡
 
-- [ ] `useFleetRealtime` hook — Supabase channel for tenant
-- [ ] Listens to `bus_locations`, `deviation_alerts`, `sos_events` INSERTs
-- [ ] `apps/shield-admin/src/pages/FleetMap.tsx` with Leaflet.js
-- [ ] Bus pins render and update position in real time
+- [x] `useFleetRealtime` hook — Supabase channel for tenant
+- [x] Listens to `bus_locations`, `deviation_alerts`, `sos_events` INSERTs
+- [x] `apps/shield-admin/src/components/MainDashboard.tsx` with Leaflet.js
+- [x] Optimized initial load using `latest_bus_locations` view (replaces client-side reduction)
+- [x] Bus pins render and update position in real time
 - [ ] Tooltip: plate, driver name, speed, last update time
 - [ ] Offline bus shown as greyed-out pin
 
@@ -1591,7 +1633,7 @@ export interface DeviationAlert {
 
 ### Dependency order
 
-```
+```mermaid
 Phase 0 (Foundation)
     └── Phase 1 (Auth)
             ├── Phase 2 (GPS Pipeline)      ← critical path
@@ -1602,24 +1644,3 @@ Phase 0 (Foundation)
 
 Phase 6 (Polish) — after Phase 0–3 are complete
 ```
-
-### Assignment table
-
-| Phase | Module                | Owner | Status | Blocked by |
-| ----- | --------------------- | ----- | ------ | ---------- |
-| 0     | 0.1 Monorepo          |       | `[~]`  | —          |
-| 0     | 0.2 Supabase schema   |       | `[x]`  | —          |
-| 0     | 0.3 Shared packages   |       | `[x]`  | 0.2        |
-| 0     | 0.4 Supabase clients  |       | `[~]`  | 0.2        |
-| 0     | 0.5 Seed data         |       | `[ ]`  | 0.2        |
-| 1     | 1A API auth           |       | `[ ]`  | 0.4        |
-| 1     | 1B Mobile auth        |       | `[ ]`  | 1A         |
-| 1     | 1C Admin auth         |       | `[ ]`  | 1A         |
-| 2     | 2A Driver GPS task    |       | `[ ]`  | 1B         |
-| 2     | 2B Driver trip screen |       | `[ ]`  | 2A         |
-| 2     | 2C Admin fleet map    |       | `[ ]`  | 1C, 0.2    |
-| 2     | 2D Parent live map    |       | `[ ]`  | 1B, 0.2    |
-| 2     | 2E ML Backend         |       | `[~]`  | 0.2, 2A    |
-| 3     | 3A SOS API + FCM      |       | `[ ]`  | 1A         |
-| 3     | 3B SOS admin UI       |       | `[ ]`  | 3A, 2C     |
-| 3     | 3C SOS parent UI      |       |
