@@ -15,6 +15,50 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- 📄 TYPESCRIPT INTERFACES FROM SCHEMA ---
 
+/**
+ * Represents any valid JSON value.
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue }
+  | JsonValue[];
+
+/**
+ * Represents a geographic coordinate [latitude, longitude].
+ */
+export type LatLngTuple = [number, number];
+
+/**
+ * Represents a route's geometry as a series of coordinates.
+ */
+export type GeoPolyline = LatLngTuple[];
+
+/**
+ * Represents a scheduled stop along a route.
+ */
+export interface RouteStop {
+  name: string;
+  lat: number;
+  lng: number;
+  arrival_time?: string;
+}
+
+/**
+ * Represents a recommended route option from the ML backend.
+ */
+export interface RouteOption {
+  route_id: string;
+  waypoints: string[];
+  distance_km: number;
+  estimated_minutes: number;
+  congestion_level: "low" | "medium" | "high";
+  is_recommended: boolean;
+  notes: string;
+}
+
 export interface Tenant {
   id: string; // uuid
   name: string;
@@ -34,8 +78,8 @@ export interface Route {
   id: string; // uuid
   tenant_id: string; // uuid
   name: string;
-  polyline: any; // jsonb
-  stops: any; // jsonb
+  polyline: GeoPolyline; // jsonb (array of coordinates)
+  stops: RouteStop[]; // jsonb (array of stop objects)
   created_at: string;
 }
 
@@ -96,14 +140,14 @@ export interface BusEtaPrediction {
   eta_minutes: number;
   confidence_pct: number;
   predicted_at: string;
-  features_json: any; // jsonb
+  features_json: Record<string, JsonValue> | null; // jsonb
 }
 
 export interface BusRouteRecommendation {
   id: string; // uuid
   bus_id: string; // uuid
   recommended_at: string;
-  routes_json: any; // jsonb
+  routes_json: RouteOption[]; // jsonb
 }
 
 export interface DeviationAlert {

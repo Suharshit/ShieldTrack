@@ -102,20 +102,17 @@ export default function MainDashboard({
     fetchRoutes();
 
     const loadInitialData = async () => {
-      // FIX: Ordering by recorded_at desc
+      // Optimized: Using a database view to get only the latest ping per bus
       const { data } = await supabase
-        .from("bus_locations")
+        .from("latest_bus_locations")
         .select("*")
-        .eq("tenant_id", tenantId)
-        .order("recorded_at", { ascending: false });
+        .eq("tenant_id", tenantId);
 
       if (data) {
         const initialMap: Record<string, BusLocation> = {};
-        // Only set the key if it doesn't already exist to preserve the most recent row!
+        // With the view, we already have one latest record per bus_id
         data.forEach((b: BusLocation) => {
-          if (!initialMap[b.bus_id]) {
-            initialMap[b.bus_id] = b;
-          }
+          initialMap[b.bus_id] = b;
         });
         setBuses(initialMap);
       }

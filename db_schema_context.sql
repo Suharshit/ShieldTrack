@@ -141,3 +141,23 @@ CREATE TABLE public.users (
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
+
+-- --- 📊 OPTIMIZED VIEWS ---
+
+-- View to get only the most recent location row for each bus.
+-- Used by Admin Dashboard to scale fleet monitoring.
+CREATE OR REPLACE VIEW public.latest_bus_locations AS
+SELECT DISTINCT ON (bus_id)
+  id,
+  trip_id,
+  bus_id,
+  tenant_id,
+  lat,
+  lng,
+  speed_kmh,
+  recorded_at
+FROM
+  public.bus_locations
+ORDER BY
+  bus_id,
+  recorded_at DESC;
