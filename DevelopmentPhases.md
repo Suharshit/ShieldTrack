@@ -2,7 +2,7 @@
 
 > **Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603**
 
-![16%](https://progress-bar.xyz/16/?title=Project%20completed)
+![35%](https://progress-bar.xyz/35/?title=Project%20completed)
 
 **Stack:** Turborepo · Expo (mobile) · React/Vite (admin) · Node.js (API) · Supabase
 
@@ -268,7 +268,6 @@ CREATE TABLE users (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   email         TEXT UNIQUE,
-  password_hash TEXT NOT NULL,
   role          user_role NOT NULL,
   device_id     TEXT,            -- drivers only: locked to one phone
   student_id    UUID,            -- parents only: linked after student created
@@ -280,9 +279,8 @@ CREATE INDEX idx_users_role   ON users(role);
 
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- Admin can see all users in their tenant
-CREATE POLICY users_admin ON users
-  USING (tenant_id = (SELECT tenant_id FROM users WHERE id = auth.uid()));
+-- Users can read their own profile
+CREATE POLICY "users_read_own" ON users FOR SELECT USING (id = auth.uid());
 ```
 
 ---
@@ -297,6 +295,8 @@ CREATE TABLE buses (
   capacity    INT NOT NULL DEFAULT 40,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX buses_tenant_plate_unique ON buses (tenant_id, upper(plate_number));
 
 CREATE TABLE routes (
   id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -330,6 +330,20 @@ ALTER TABLE buses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trip_assignments ENABLE ROW LEVEL SECURITY;
+
+-- Admins can query all assets within their tenant
+CREATE POLICY "admin_all_buses" ON buses FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = buses.tenant_id)
+);
+CREATE POLICY "admin_all_routes" ON routes FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = routes.tenant_id)
+);
+CREATE POLICY "admin_all_students" ON students FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = students.tenant_id)
+);
+CREATE POLICY "admin_all_trip_assignments" ON trip_assignments FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = trip_assignments.tenant_id)
+);
 ```
 
 ---
@@ -377,6 +391,11 @@ CREATE INDEX idx_bus_locations_trip   ON bus_locations(trip_id, recorded_at DESC
 CREATE INDEX idx_bus_locations_tenant ON bus_locations(tenant_id, recorded_at DESC);
 
 ALTER TABLE bus_locations ENABLE ROW LEVEL SECURITY;
+
+-- Admins can view all fleet locations within their tenant
+CREATE POLICY "admin_all_bus_locations" ON bus_locations FOR ALL USING (
+  EXISTS (SELECT 1 FROM users AS admin_check WHERE admin_check.id = auth.uid() AND admin_check.role = 'admin' AND admin_check.tenant_id = bus_locations.tenant_id)
+);
 
 -- Parents can only see locations for their assigned bus
 CREATE POLICY bus_locations_parent ON bus_locations
@@ -1400,12 +1419,12 @@ export interface DeviationAlert {
 - [ ] Device ID captured via `expo-device` on driver login
 - [ ] Device mismatch error shown
 
-**Module 1C — Admin Auth** 🔴
+**Module 1C — Admin Auth** 🟢
 
-- [ ] `apps/shield-admin/src/pages/Login.tsx` — email + password form
-- [ ] JWT stored in `localStorage`
-- [ ] `ProtectedRoute` wrapper component
-- [ ] Redirect to `/dashboard` on success
+- [x] `apps/shield-admin/src/pages/Login.tsx` — email + password form
+- [x] JWT stored in `localStorage`
+- [x] `ProtectedRoute` wrapper component
+- [x] Redirect to `/dashboard` on success
 
 ---
 
@@ -1434,12 +1453,12 @@ export interface DeviationAlert {
 - [ ] "End Route" button → `POST /trips/:id/end` → stops GPS task
 - [ ] `apps/mobile/app/(driver)/sos-confirm.tsx` — confirmation modal
 
-**Module 2C — Admin Fleet Map** 🔴
+**Module 2C — Admin Fleet Map** 🟡
 
-- [ ] `useFleetRealtime` hook — Supabase channel for tenant
-- [ ] Listens to `bus_locations`, `deviation_alerts`, `sos_events` INSERTs
-- [ ] `apps/shield-admin/src/pages/FleetMap.tsx` with Leaflet.js
-- [ ] Bus pins render and update position in real time
+- [x] `useFleetRealtime` hook — Supabase channel for tenant
+- [x] Listens to `bus_locations`, `deviation_alerts`, `sos_events` INSERTs
+- [x] `apps/shield-admin/src/pages/FleetMap.tsx` with Leaflet.js
+- [x] Bus pins render and update position in real time
 - [ ] Tooltip: plate, driver name, speed, last update time
 - [ ] Offline bus shown as greyed-out pin
 

@@ -42,6 +42,7 @@ CREATE TABLE public.buses (
   CONSTRAINT buses_pkey PRIMARY KEY (id),
   CONSTRAINT buses_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
 );
+CREATE UNIQUE INDEX buses_tenant_plate_unique ON public.buses (tenant_id, upper(plate_number));
 CREATE TABLE public.deviation_alerts (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   trip_id uuid NOT NULL,
@@ -133,7 +134,6 @@ CREATE TABLE public.users (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
   email text UNIQUE,
-  password_hash text NOT NULL,
   role text NOT NULL,
   device_id text,
   student_id uuid,

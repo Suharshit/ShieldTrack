@@ -1,6 +1,6 @@
 # ShieldTrack Monorepo
 
-![16%](https://progress-bar.xyz/16/?title=Project%20completed)
+![35%](https://progress-bar.xyz/35/?title=Project%20completed)
 
 ## Prerequisites
 
