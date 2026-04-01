@@ -3,6 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ Error: Missing SUPABASE_URL or SUPABASE_SERVICE_KEY environment variables.");
+  process.exit(1);
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function seedAdmin() {
@@ -23,8 +28,13 @@ async function seedAdmin() {
   }
 
   // 2. Create Auth User
-  const email = "admin@shield.track";
-  const password = "adminpassword123";
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    console.error("❌ Error: Missing ADMIN_EMAIL or ADMIN_PASSWORD environment variables.");
+    process.exit(1);
+  }
 
   const { data: authUser, error: authErr } = await supabase.auth.admin.createUser({
     email,
@@ -32,8 +42,9 @@ async function seedAdmin() {
     email_confirm: true
   });
 
-  if (authErr && authErr.message !== "User already registered") {
-    console.error("Auth User Error:", authErr);
+  if (authErr && !authErr.message.includes("already registered")) {
+    console.error("❌ Auth User Creation Error:", authErr);
+    process.exit(1);
   }
 
   const userId = authUser?.user?.id;
@@ -52,16 +63,22 @@ async function seedAdmin() {
     console.log("Auth user might already exist. Just make sure the public.users is an admin.");
     // We can fetch by email via admin api
     const { data: users, error: listErr } = await supabase.auth.admin.listUsers();
-    if (!listErr && users.users) {
+    if (listErr) {
+      console.error("❌ Error listing users:", listErr);
+      process.exit(1);
+    }
+
+    if (users?.users) {
       const u = users.users.find(u => u.email === email);
       if (u) {
-        await supabase.from('users').upsert({
+        const { error: upsertErr } = await supabase.from('users').upsert({
           id: u.id,
           tenant_id: tenant.id,
           email,
           role: 'admin'
         });
-        console.log("Updated existing Auth user to public admin role.");
+        if (upsertErr) throw upsertErr;
+        console.log("✅ Updated existing Auth user to public admin role.");
       }
     }
   }
