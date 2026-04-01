@@ -4,6 +4,13 @@ import { createClient } from "@supabase/supabase-js";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY environment variables. " +
+    "Please check your .env file."
+  );
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- 📄 TYPESCRIPT INTERFACES FROM SCHEMA ---
@@ -18,7 +25,7 @@ export interface Tenant {
 export interface Bus {
   id: string; // uuid
   tenant_id: string; // uuid
-  plate_number: string;
+  plate_number: string; // unique per tenant (case-insensitive)
   capacity: number;
   created_at: string;
 }
@@ -77,7 +84,6 @@ export interface User {
   id: string; // uuid
   tenant_id: string; // uuid
   email: string | null;
-  password_hash: string;
   role: string;
   device_id: string | null;
   student_id: string | null; // uuid
