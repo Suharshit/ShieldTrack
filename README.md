@@ -1,6 +1,6 @@
 # ShieldTrack Monorepo
 
-![35%](https://progress-bar.xyz/35/?title=Project%20completed)
+![42%](https://progress-bar.xyz/35/?title=Project%20completed)
 
 ## Prerequisites
 
@@ -10,11 +10,14 @@
 ## Setup
 
 1. Copy the environment template to your local machine:
+
    ```sh
    cp .env.example .env
    ```
+
 2. Open `.env` and fill in your Supabase credentials (this single root `.env` file powers the mobile app, admin portal, API, and Python ML Backend).
 3. Install the workspace dependencies:
+
    ```sh
    pnpm setup
    ```

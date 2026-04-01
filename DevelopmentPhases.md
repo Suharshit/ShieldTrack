@@ -2,7 +2,7 @@
 
 > **Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603**
 
-![35%](https://progress-bar.xyz/35/?title=Project%20completed)
+![42%](https://progress-bar.xyz/42/?title=Project%20completed)
 
 **Stack:** Turborepo · Expo (mobile) · React/Vite (admin) · Node.js (API) · Supabase
 
@@ -1443,10 +1443,10 @@ export interface DeviationAlert {
 
 **Module 1C — Admin Auth** 🟢
 
-- [x] `apps/shield-admin/src/pages/Login.tsx` — email + password form
-- [x] JWT stored in `localStorage`
-- [x] `ProtectedRoute` wrapper component
-- [x] Redirect to `/dashboard` on success
+- [x] `apps/shield-admin/src/components/LoginScreen.tsx` — Email + Password form
+- [x] Supabase Session handling (automatic persistence)
+- [x] Conditional rendering in `App.tsx` (replaces `ProtectedRoute`)
+- [x] Immediate state hydration on session detection
 
 ---
 
@@ -1479,7 +1479,7 @@ export interface DeviationAlert {
 
 - [x] `useFleetRealtime` hook — Supabase channel for tenant
 - [x] Listens to `bus_locations`, `deviation_alerts`, `sos_events` INSERTs
-- [x] `apps/shield-admin/src/pages/FleetMap.tsx` with Leaflet.js
+- [x] `apps/shield-admin/src/components/MainDashboard.tsx` with Leaflet.js
 - [x] Optimized initial load using `latest_bus_locations` view (replaces client-side reduction)
 - [x] Bus pins render and update position in real time
 - [ ] Tooltip: plate, driver name, speed, last update time
