@@ -82,6 +82,8 @@ const requestJson = async <T>(
 
 const mockTrip = (tripId: string): Trip => ({
   id: tripId,
+  tenant_id: 'tenant_mock_1',
+  assignment_id: 'assign_mock_1',
   bus_id: 'bus_mock_1',
   route_id: 'route_mock_1',
   driver_id: 'driver_mock_1',

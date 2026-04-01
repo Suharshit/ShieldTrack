@@ -1,34 +1,101 @@
-export interface Trip {
+export interface Tenant { 
   id: string; 
-  bus_id: string; 
-  route_id: string;
-  driver_id: string; 
-  status: 'active' | 'completed';
-  started_at: string; 
-  ended_at?: string;
+  name: string; 
+  institute_code: string; 
 }
-export interface BusLocation {
+export interface User { 
+  id: string; 
+  tenant_id: string; 
+  email?: string; 
+  role: 'admin'|'driver'|'parent'; 
+  device_id?: string; 
+  student_id?: string; 
+}
+export interface Bus { 
+  id: string; 
+  tenant_id: string; 
+  plate_number: string; 
+  capacity: number; 
+}
+export interface Stop { 
+  name: string; 
+  lat: number; 
+  lng: number; 
+  order: number; 
+}
+export interface Route { 
+  id: string; 
+  tenant_id: string; 
+  name: string; 
+  polyline: {lat:number,lng:number}[]; 
+  stops: Stop[]; 
+}
+export interface Student { 
+  id: string; 
+  tenant_id: string; 
+  name: string; 
+  route_id: string; 
+}
+export interface TripAssignment { 
+  id: string; 
+  tenant_id: string; 
+  bus_id: string; 
+  route_id: string; 
+  driver_id: string; 
+  assigned_date: string; 
+}
+export interface Trip { 
+  id: string; 
+  tenant_id: string; 
+  assignment_id: string; 
+  bus_id: string; 
+  route_id: string; 
+  driver_id: string; 
+  status: 'active'|'completed'; 
+  started_at: string; 
+  ended_at?: string; 
+}
+export interface BusLocation { 
+  id: string; 
   trip_id: string; 
   bus_id: string; 
-  tenant_id: string;
+  tenant_id: string; 
   lat: number; 
   lng: number; 
   speed_kmh: number; 
-  recorded_at: string;
+  recorded_at: string; 
 }
-export interface SOSEvent {
+export interface SOSEvent { 
   id: string; 
   trip_id: string; 
+  bus_id: string; 
+  tenant_id: string; 
   lat: number; 
-  lng: number;
+  lng: number; 
   triggered_at: string; 
-  resolved_at?: string;
+  resolved_at?: string; 
+  notes?: string; 
+}
+export interface DeviationAlert { 
+  id: string; 
+  trip_id: string; 
+  bus_id: string; 
+  tenant_id: string; 
+  lat: number; 
+  lng: number; 
+  distance_m: number; 
+  triggered_at: string; 
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
   device_id?: string;
+}
+
+export interface ParentLoginRequest {
+  institute_code: string;
+  student_id: string;
 }
 
 export interface DriverSession {
@@ -41,8 +108,19 @@ export interface DriverSession {
   expires_at: string;
 }
 
+export interface ParentSession {
+  user_id: string;
+  tenant_id: string;
+  student_id: string;
+  bus_id: string;
+  role: 'parent';
+  access_token: string;
+  refresh_token?: string;
+  expires_at: string;
+}
+
 export interface LoginResponse {
-  session: DriverSession;
+  session: DriverSession | ParentSession;
 }
 
 export interface TodayAssignment {
