@@ -40,12 +40,24 @@ export default function MainDashboard({
   const [newStudentName, setNewStudentName] = useState("");
   const [assignRouteId, setAssignRouteId] = useState("");
 
+  const DEFAULT_CAPACITY = 40;
+  const MIN_CAPACITY = 10;
+  const MAX_CAPACITY = 100;
+
   // --- 1. REGISTER A NEW BUS ---
   const handleRegisterBus = async (e: FormEvent) => {
     e.preventDefault();
     if (!newPlateNumber.trim()) return;
+
     const plate = newPlateNumber.trim().toUpperCase();
-    const capacity = parseInt(newBusCapacity, 10) || 40;
+
+    // Harden capacity parsing
+    let capacity = parseInt(newBusCapacity, 10);
+    if (isNaN(capacity)) {
+      capacity = DEFAULT_CAPACITY;
+    }
+    // Clamp to [MIN, MAX]
+    capacity = Math.max(MIN_CAPACITY, Math.min(MAX_CAPACITY, capacity));
 
     const { error } = await supabase
       .from("buses")
@@ -132,11 +144,18 @@ export default function MainDashboard({
         (payload) => {
           // FIX: Handle DELETE events safely
           if (payload.eventType === "DELETE") {
-            const old = payload.old as { id: string; bus_id: string };
+            const oldId = (payload.old as { id: string }).id;
             setBuses((prev) => {
-              const copy = { ...prev };
-              delete copy[old.bus_id];
-              return copy;
+              // Only remove the bus if the record being deleted was actually the one we have in state
+              const busIdKey = Object.keys(prev).find(
+                (key) => prev[key].id === oldId,
+              );
+              if (busIdKey) {
+                const copy = { ...prev };
+                delete copy[busIdKey];
+                return copy;
+              }
+              return prev;
             });
           } else {
             const newLoc = payload.new as BusLocation;

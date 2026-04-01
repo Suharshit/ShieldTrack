@@ -28,6 +28,9 @@ export default function App() {
         
       if (error || !data) {
         setAccessDeniedMsg("User record not found. Contact IT.");
+        setIsAuthenticated(false);
+        setTenantId(null);
+        setInstituteCode("");
         await supabase.auth.signOut();
         setLoading(false);
         return;
@@ -35,6 +38,9 @@ export default function App() {
 
       if (data.role !== "admin") {
         setAccessDeniedMsg("Access denied. This portal is for administrators only.");
+        setIsAuthenticated(false);
+        setTenantId(null);
+        setInstituteCode("");
         await supabase.auth.signOut();
         setLoading(false);
         return;
