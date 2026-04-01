@@ -3,6 +3,8 @@
 ## Quick start
 
 ```sh
+cp .env.example .env
+# Open .env and fill in your keys
 pnpm setup
 ```
 
