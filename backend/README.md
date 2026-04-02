@@ -1,6 +1,6 @@
 # ShieldTrack ML Backend
 
-**Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603**
+## Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603
 
 A Python-based machine learning backend that transforms ShieldTrack from a real-time tracking system into an intelligent, predictive fleet management platform. It provides two core capabilities: predicting bus arrival times with a confidence score, and recommending optimal routes using a graph-based optimizer with learned congestion costs.
 
@@ -32,7 +32,7 @@ A Python-based machine learning backend that transforms ShieldTrack from a real-
 
 The base ShieldTrack system uses a deterministic formula for ETA:
 
-```
+```python
 eta = distance_remaining / rolling_avg_speed
 ```
 
@@ -44,7 +44,7 @@ This ML backend solves both problems. It replaces the formula with a Gradient Bo
 
 ## 2. How it fits into the full system
 
-```
+```mermaid
 ┌─────────────────┐     GPS every 7s      ┌──────────────────────┐
 │   Driver App    │ ───────────────────▶  │                      │
 │ (Expo Mobile)   │                       │      Supabase        │
@@ -82,7 +82,7 @@ This ML backend solves both problems. It replaces the formula with a Gradient Bo
 
 ## 3. Project structure
 
-```
+```mermaid
 shieldtrack_ml/
 │
 ├── .env.example              # Template — copy to .env and fill in secrets
@@ -187,7 +187,7 @@ python generate_synthetic_data.py
 
 Expected output:
 
-```
+```plaintext
 Generating 2000 synthetic trips...
   500/2000 trips done...
   1000/2000 trips done...
@@ -211,7 +211,7 @@ python train_eta_model.py
 
 Expected output:
 
-```
+```mermaid
 Loading training data...
 Training set: 12,800 rows
 Test set:     3,200 rows
@@ -247,7 +247,7 @@ uvicorn main:app --reload --port 8000
 
 Expected output:
 
-```
+```plaintext
 [startup] Loading ML model...
 [predictor] Model loaded from eta_model.pkl
 [predictor] Training stats: {'mae_minutes': 1.42, 'r2_score': 0.9783, ...}
@@ -736,7 +736,7 @@ Gradient Boosting builds its final prediction by combining hundreds of simple de
 
 The confidence score is not a direct model output — the regression model only outputs a single number (predicted minutes). The confidence is derived from a heuristic based on two signals: how close the bus is to its destination (close = more predictable) and how heavy the current traffic delay is (heavy delay = more uncertain). The formula is:
 
-```
+```plaintext
 base_confidence = 0.65 + 0.20 × closeness_factor + 0.15 × (1 - traffic_factor)
 confidence_pct  = clip(base_confidence × 100, 50, 98)
 ```
@@ -769,7 +769,7 @@ Finding the fastest route reduces to the classical computer science problem: **s
 
 Imagine you're standing at the origin and you have a priority queue of all intersections ordered by "cheapest cost to reach from origin". You always expand the cheapest unvisited intersection first. When you finally pop the destination off the queue, you've found the globally optimal path — because any alternative path would have been expanded first if it were cheaper.
 
-```
+```python
 heap = [(cost=0, node=origin, path=[origin])]
 
 while heap is not empty:
@@ -787,7 +787,7 @@ while heap is not empty:
 
 The standard version of Dijkstra uses static edge weights (fixed speed limits). Our enhancement replaces static speeds with a **learned congestion function**:
 
-```
+```python
 effective_speed = FREE_FLOW_SPEED / congestion_factor(hour, road_type)
 edge_time = edge_distance / effective_speed
 ```
@@ -953,13 +953,13 @@ This is the core competitive argument for the ML approach.
 
 Every call to the Google Maps Routes API or Directions API costs money. At the GPS update rate ShieldTrack uses (7 seconds), the number of API calls grows very quickly:
 
-```
+```plaintext
 calls/month = buses × (3600 / interval_seconds) × hours_per_day × 22 days
 ```
 
 For a school with 20 buses, 4 active hours per day, 7-second updates:
 
-```
+```plaintext
 20 × 514 × 4 × 22 = 904,320 calls/month
 At $0.007/call  = $6,330/month
 ```
@@ -1022,7 +1022,7 @@ source .venv/bin/activate      # macOS / Linux
 pip install -r requirements.txt
 ```
 
-**Port 8000 already in use**
+### Port 8000 already in use
 
 Another process is using port 8000. Either stop that process or run the server on a different port:
 
@@ -1032,7 +1032,7 @@ uvicorn main:app --reload --port 8001
 
 If using port 8001, update the URL in `simulate-bus.js` and any other callers to match.
 
-**Predictions appear in Supabase but apps don't update**
+### Predictions appear in Supabase but apps don't update
 
 Realtime is not enabled on the prediction tables. Go to Supabase Dashboard → Database → Replication and toggle on `bus_eta_predictions` and `bus_route_recommendations`.
 
