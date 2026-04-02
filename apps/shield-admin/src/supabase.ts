@@ -43,6 +43,7 @@ export interface RouteStop {
   name: string;
   lat: number;
   lng: number;
+  order: number;
   arrival_time?: string;
 }
 
@@ -88,8 +89,18 @@ export interface Student {
   tenant_id: string; // uuid
   name: string;
   route_id: string | null; // uuid
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
   created_at: string;
 }
+
+/**
+ * A driver is a User with role = 'driver'.
+ */
+export type Driver = Pick<User, 'id' | 'tenant_id' | 'email' | 'created_at'> & {
+  role: 'driver';
+};
 
 export interface BusLocation {
   id: string; // uuid
