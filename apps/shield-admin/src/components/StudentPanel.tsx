@@ -30,6 +30,7 @@ export default function StudentPanel({
 
   // Form state
   const [name, setName] = useState("");
+  const [registrationNo, setRegistrationNo] = useState("");
   const [address, setAddress] = useState("");
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
@@ -89,6 +90,7 @@ export default function StudentPanel({
     const { error } = await supabase.from("students").insert({
       tenant_id: tenantId,
       name: name.trim(),
+      registration_no: registrationNo.trim(),
       address: address || null,
       lat,
       lng,
@@ -97,6 +99,7 @@ export default function StudentPanel({
     if (error) alert("Error registering student: " + error.message);
     else {
       setName("");
+      setRegistrationNo("");
       setAddress("");
       setLat(null);
       setLng(null);
@@ -174,6 +177,13 @@ export default function StudentPanel({
             placeholder="Student name"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
+          />
+          <input
+            type="text"
+            placeholder="Registration No."
+            value={registrationNo}
+            onChange={(e) => setRegistrationNo(e.target.value)}
             className="px-3 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
           />
 
@@ -320,6 +330,11 @@ export default function StudentPanel({
                         <p className="m-0 font-bold text-gray-800 text-sm truncate">
                           {student.name}
                         </p>
+                        {student.registration_no && (
+                          <p className="m-0 text-[10px] text-violet-600 font-bold uppercase mt-0.5">
+                            ID: {student.registration_no}
+                          </p>
+                        )}
                         <button
                           onClick={() =>
                             handleDeleteStudent(student.id, student.name)

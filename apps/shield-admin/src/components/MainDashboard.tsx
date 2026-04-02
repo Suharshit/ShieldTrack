@@ -21,7 +21,15 @@ import {
   PiXBold,
 } from "react-icons/pi";
 import { supabase } from "../supabase";
-import type { Bus, BusLocation, Student, RouteStop } from "../supabase";
+import type {
+  Bus,
+  BusEtaPrediction,
+  BusLocation,
+  BusRouteRecommendation,
+  RouteOption,
+  Student,
+  RouteStop,
+} from "../supabase";
 
 import FleetPanel from "./FleetPanel";
 import DriverPanel from "./DriverPanel";
@@ -210,6 +218,89 @@ interface MainDashboardProps {
   instituteCode: string;
 }
 
+interface ApprovedReroute {
+  id: string;
+  busId: string;
+  busLabel: string;
+  routeId: string;
+  estimatedMinutes: number;
+  approvedAt: string;
+  note: string;
+}
+
+const APPROVED_REROUTES_STORAGE_KEY = "shieldtrack_approved_reroutes_v1";
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getConfidenceMeta(confidencePct: number | null): {
+  label: string;
+  badgeClass: string;
+} {
+  if (confidencePct == null) {
+    return {
+      label: "No estimate yet",
+      badgeClass: "bg-gray-100 text-gray-600",
+    };
+  }
+
+  if (confidencePct >= 80) {
+    return {
+      label: "High confidence",
+      badgeClass: "bg-emerald-100 text-emerald-700",
+    };
+  }
+
+  if (confidencePct >= 60) {
+    return {
+      label: "Medium confidence",
+      badgeClass: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Low confidence",
+    badgeClass: "bg-rose-100 text-rose-700",
+  };
+}
+
+function formatTime(value: string | null | undefined): string {
+  if (!value) return "--";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "--";
+  return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function loadApprovedReroutes(): ApprovedReroute[] {
+  try {
+    const raw = localStorage.getItem(APPROVED_REROUTES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as ApprovedReroute[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function isNewerRecord(
+  currentTs: string | null | undefined,
+  incomingTs: string | null | undefined,
+): boolean {
+  const current = Date.parse(currentTs ?? "");
+  const incoming = Date.parse(incomingTs ?? "");
+  if (Number.isNaN(incoming)) return false;
+  if (Number.isNaN(current)) return true;
+  return incoming >= current;
+}
+
 export default function MainDashboard({
   tenantId,
   instituteCode,
@@ -219,6 +310,16 @@ export default function MainDashboard({
   // Live tracking state
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
   const [fleetList, setFleetList] = useState<Bus[]>([]);
+  const [etaByBus, setEtaByBus] = useState<Record<string, BusEtaPrediction>>(
+    {},
+  );
+  const [routeSuggestionsByBus, setRouteSuggestionsByBus] = useState<
+    Record<string, BusRouteRecommendation>
+  >({});
+  const [selectedInsightBusId, setSelectedInsightBusId] = useState("");
+  const [approvedReroutes, setApprovedReroutes] = useState<ApprovedReroute[]>(
+    [],
+  );
 
   // Map interaction state
   const [mapClickHandler, setMapClickHandler] = useState<
@@ -258,6 +359,60 @@ export default function MainDashboard({
       .eq("tenant_id", tenantId);
     if (data) setAllStudents(data);
   }, [tenantId]);
+
+  const fetchLatestInsights = useCallback(async (busIds: string[]) => {
+    if (busIds.length === 0) {
+      setEtaByBus({});
+      setRouteSuggestionsByBus({});
+      return;
+    }
+
+    const [etaRes, recRes] = await Promise.all([
+      supabase
+        .from("bus_eta_predictions")
+        .select("*")
+        .in("bus_id", busIds)
+        .order("predicted_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("bus_route_recommendations")
+        .select("*")
+        .in("bus_id", busIds)
+        .order("recommended_at", { ascending: false })
+        .limit(500),
+    ]);
+
+    if (etaRes.data) {
+      const next: Record<string, BusEtaPrediction> = {};
+      etaRes.data.forEach((row) => {
+        if (!next[row.bus_id]) {
+          next[row.bus_id] = row;
+        }
+      });
+      setEtaByBus(next);
+    }
+
+    if (recRes.data) {
+      const next: Record<string, BusRouteRecommendation> = {};
+      recRes.data.forEach((row) => {
+        if (!next[row.bus_id]) {
+          next[row.bus_id] = row;
+        }
+      });
+      setRouteSuggestionsByBus(next);
+    }
+  }, []);
+
+  useEffect(() => {
+    setApprovedReroutes(loadApprovedReroutes());
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(
+      APPROVED_REROUTES_STORAGE_KEY,
+      JSON.stringify(approvedReroutes.slice(0, 30)),
+    );
+  }, [approvedReroutes]);
 
   useEffect(() => {
     fetchFleet();
@@ -311,6 +466,50 @@ export default function MainDashboard({
           }
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "bus_eta_predictions",
+        },
+        (payload) => {
+          const incoming = payload.new as BusEtaPrediction;
+          if (!incoming?.bus_id) return;
+          setEtaByBus((prev) => {
+            const current = prev[incoming.bus_id];
+            if (
+              current &&
+              !isNewerRecord(current.predicted_at, incoming.predicted_at)
+            ) {
+              return prev;
+            }
+            return { ...prev, [incoming.bus_id]: incoming };
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "bus_route_recommendations",
+        },
+        (payload) => {
+          const incoming = payload.new as BusRouteRecommendation;
+          if (!incoming?.bus_id) return;
+          setRouteSuggestionsByBus((prev) => {
+            const current = prev[incoming.bus_id];
+            if (
+              current &&
+              !isNewerRecord(current.recommended_at, incoming.recommended_at)
+            ) {
+              return prev;
+            }
+            return { ...prev, [incoming.bus_id]: incoming };
+          });
+        },
+      )
       .subscribe();
 
     return () => {
@@ -352,6 +551,65 @@ export default function MainDashboard({
 
   // Map data
   const activeBuses = Object.values(buses);
+  const activeBusIds = Object.keys(buses);
+  const activeBusIdsKey = activeBusIds.join("|");
+
+  useEffect(() => {
+    fetchLatestInsights(activeBusIds);
+  }, [activeBusIdsKey, fetchLatestInsights]);
+
+  useEffect(() => {
+    if (activeBusIds.length === 0) {
+      setSelectedInsightBusId("");
+      return;
+    }
+    if (!selectedInsightBusId || !activeBusIds.includes(selectedInsightBusId)) {
+      setSelectedInsightBusId(activeBusIds[0]);
+    }
+  }, [activeBusIdsKey, selectedInsightBusId]);
+
+  const selectedBusId = selectedInsightBusId;
+  const selectedBusDetails = fleetList.find((bus) => bus.id === selectedBusId);
+  const selectedEta = selectedBusId ? etaByBus[selectedBusId] : undefined;
+  const selectedRecommendation = selectedBusId
+    ? routeSuggestionsByBus[selectedBusId]
+    : undefined;
+  const selectedRouteOptions = Array.isArray(
+    selectedRecommendation?.routes_json,
+  )
+    ? (selectedRecommendation?.routes_json as RouteOption[])
+    : [];
+  const recommendedRoute =
+    selectedRouteOptions.find((option) => option.is_recommended) ??
+    selectedRouteOptions[0];
+
+  const approveRoute = (route: RouteOption) => {
+    if (!selectedBusId) return;
+    const busLabel =
+      selectedBusDetails?.plate_number ?? `Bus ${selectedBusId.slice(0, 8)}`;
+
+    const record: ApprovedReroute = {
+      id: `${selectedBusId}-${route.route_id}-${Date.now()}`,
+      busId: selectedBusId,
+      busLabel,
+      routeId: route.route_id,
+      estimatedMinutes: route.estimated_minutes,
+      approvedAt: new Date().toISOString(),
+      note: route.notes,
+    };
+
+    setApprovedReroutes((prev) => [record, ...prev].slice(0, 30));
+  };
+
+  const dismissSuggestion = () => {
+    if (!selectedBusId) return;
+    setRouteSuggestionsByBus((prev) => {
+      const next = { ...prev };
+      delete next[selectedBusId];
+      return next;
+    });
+  };
+
   const saved = getSavedMapView();
   const defaultCenter: LatLngExpression = saved
     ? [saved.lat, saved.lng]
@@ -369,7 +627,7 @@ export default function MainDashboard({
   return (
     <div className="flex h-screen w-screen m-0 bg-[#f5f7fa]">
       {/* ─── SIDEBAR ─── */}
-      <div className="w-[380px] bg-white text-gray-800 shadow-[4px_0_15px_rgba(0,0,0,0.05)] z-10 flex flex-col">
+      <div className="w-95 bg-white text-gray-800 shadow-[4px_0_15px_rgba(0,0,0,0.05)] z-10 flex flex-col">
         {/* Header */}
         <div className="px-5 py-4 bg-[#1a237e] text-white flex justify-between items-center shrink-0">
           <div>
@@ -487,6 +745,10 @@ export default function MainDashboard({
           {activeBuses.map((busLoc) => {
             const busDetails = fleetList.find((b) => b.id === busLoc.bus_id);
             const title = busDetails ? busDetails.plate_number : "Unknown Bus";
+            const eta = etaByBus[busLoc.bus_id];
+            const etaMinutes = toNumber(eta?.eta_minutes);
+            const confidencePct = toNumber(eta?.confidence_pct);
+            const confidence = getConfidenceMeta(confidencePct);
             return (
               <Marker
                 key={`bus-${busLoc.bus_id}`}
@@ -497,6 +759,31 @@ export default function MainDashboard({
                   <b>{title}</b>
                   <br />
                   Speed: {busLoc.speed_kmh} km/h
+                  <br />
+                  Arrival estimate:{" "}
+                  {etaMinutes != null
+                    ? `${Math.round(etaMinutes)} min`
+                    : "Waiting for update"}
+                  <br />
+                  <span
+                    style={{
+                      color:
+                        confidencePct == null
+                          ? "#4b5563"
+                          : confidencePct >= 80
+                            ? "#047857"
+                            : confidencePct >= 60
+                              ? "#b45309"
+                              : "#b91c1c",
+                    }}
+                  >
+                    Confidence: {confidence.label}
+                    {confidencePct != null
+                      ? ` (${Math.round(confidencePct)}%)`
+                      : ""}
+                  </span>
+                  <br />
+                  Last ping: {formatTime(busLoc.recorded_at)}
                 </Popup>
               </Marker>
             );
@@ -561,6 +848,167 @@ export default function MainDashboard({
             />
           )}
         </MapContainer>
+
+        {/* Live ETA + route recommendation panel */}
+        {activeTab === "fleet" && (
+          <div className="absolute top-4 right-4 w-88 max-w-136 bg-white/95 backdrop-blur-sm rounded-xl shadow-xl border border-gray-200 z-1000 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-200 bg-linear-to-r from-sky-50 to-indigo-50">
+              <p className="m-0 text-sm font-bold text-gray-800">
+                Live travel insights
+              </p>
+              <p className="m-0 text-xs text-gray-500 mt-0.5">
+                Arrival estimate and route decisions for active buses
+              </p>
+            </div>
+
+            <div className="p-4 flex flex-col gap-3">
+              {activeBusIds.length === 0 ? (
+                <p className="m-0 text-sm text-gray-500">
+                  No active buses yet. Start a trip to see ETA and route
+                  suggestions.
+                </p>
+              ) : (
+                <>
+                  <label className="text-xs font-semibold text-gray-600">
+                    Active bus
+                  </label>
+                  <select
+                    value={selectedBusId}
+                    onChange={(e) => setSelectedInsightBusId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  >
+                    {activeBusIds.map((busId) => {
+                      const details = fleetList.find((bus) => bus.id === busId);
+                      return (
+                        <option key={busId} value={busId}>
+                          {details?.plate_number ?? `Bus ${busId.slice(0, 8)}`}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-sky-100 bg-sky-50 p-3">
+                      <p className="m-0 text-[11px] uppercase tracking-wide text-sky-700 font-semibold">
+                        Arrival estimate
+                      </p>
+                      <p className="m-0 mt-1 text-xl font-extrabold text-sky-900">
+                        {toNumber(selectedEta?.eta_minutes) != null
+                          ? `${Math.round(toNumber(selectedEta?.eta_minutes) as number)} min`
+                          : "--"}
+                      </p>
+                      <p className="m-0 mt-1 text-[11px] text-sky-700">
+                        Updated {formatTime(selectedEta?.predicted_at)}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      <p className="m-0 text-[11px] uppercase tracking-wide text-gray-600 font-semibold">
+                        Confidence
+                      </p>
+                      <div className="mt-1">
+                        {(() => {
+                          const confidencePct = toNumber(
+                            selectedEta?.confidence_pct,
+                          );
+                          const meta = getConfidenceMeta(confidencePct);
+                          return (
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${meta.badgeClass}`}
+                            >
+                              {meta.label}
+                              {confidencePct != null
+                                ? ` (${Math.round(confidencePct)}%)`
+                                : ""}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="m-0 text-sm font-semibold text-indigo-900">
+                        Recommended route
+                      </p>
+                      {selectedRecommendation?.recommended_at && (
+                        <span className="text-[11px] text-indigo-700">
+                          Updated{" "}
+                          {formatTime(selectedRecommendation.recommended_at)}
+                        </span>
+                      )}
+                    </div>
+
+                    {recommendedRoute ? (
+                      <>
+                        <p className="m-0 mt-1 text-sm text-indigo-900">
+                          {recommendedRoute.route_id} -{" "}
+                          {Math.round(recommendedRoute.estimated_minutes)} min
+                        </p>
+                        <p className="m-0 mt-1 text-xs text-indigo-700">
+                          {recommendedRoute.notes ||
+                            "Suggested as the quickest option right now."}
+                        </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            onClick={() => approveRoute(recommendedRoute)}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold border-none cursor-pointer hover:bg-indigo-700 transition"
+                          >
+                            Approve route
+                          </button>
+                          <button
+                            onClick={dismissSuggestion}
+                            className="px-3 py-1.5 rounded-lg bg-white text-gray-700 text-xs font-semibold border border-gray-300 cursor-pointer hover:bg-gray-50 transition"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="m-0 mt-1 text-xs text-indigo-700">
+                        No route suggestion yet for this bus.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="m-0 text-sm font-semibold text-gray-800">
+                      Approved reroutes
+                    </p>
+                    {approvedReroutes.length === 0 ? (
+                      <p className="m-0 mt-1 text-xs text-gray-500">
+                        Approved routes will appear here.
+                      </p>
+                    ) : (
+                      <div className="mt-2 flex flex-col gap-2 max-h-44 overflow-y-auto">
+                        {approvedReroutes.map((item) => (
+                          <div
+                            key={item.id}
+                            className="rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-2"
+                          >
+                            <p className="m-0 text-xs font-semibold text-gray-800">
+                              {item.busLabel} - {item.routeId}
+                            </p>
+                            <p className="m-0 text-[11px] text-gray-600 mt-0.5">
+                              ETA {Math.round(item.estimatedMinutes)} min ·
+                              Approved {formatTime(item.approvedAt)}
+                            </p>
+                            {item.note ? (
+                              <p className="m-0 text-[11px] text-gray-500 mt-0.5">
+                                {item.note}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Map Legend */}
         {showStudentsOnMap && (
