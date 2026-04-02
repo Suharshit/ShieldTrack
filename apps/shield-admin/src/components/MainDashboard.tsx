@@ -11,11 +11,28 @@ const busIcon = new L.Icon({
   popupAnchor: [0, -40],
 });
 
+const homeIcon = new L.Icon({
+  iconUrl: "https://cdn-icons-png.flaticon.com/512/25/25694.png",
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -36],
+});
+
 function FollowBus({ center }: { center: LatLngExpression | null }) {
   const map = useMap();
   useEffect(() => {
     if (center) {
       map.flyTo(center, map.getZoom(), { animate: true, duration: 1.5 });
+    }
+  }, [center, map]);
+  return null;
+}
+
+function FlyToAddress({ center }: { center: LatLngExpression | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) {
+      map.flyTo(center, 16, { animate: true, duration: 1.5 });
     }
   }, [center, map]);
   return null;
@@ -39,6 +56,12 @@ export default function MainDashboard({
   const [newBusCapacity, setNewBusCapacity] = useState("40");
   const [newStudentName, setNewStudentName] = useState("");
   const [assignRouteId, setAssignRouteId] = useState("");
+
+  // Address search state
+  const [addressQuery, setAddressQuery] = useState("");
+  const [searchPin, setSearchPin] = useState<LatLngExpression | null>(null);
+  const [searchPinLabel, setSearchPinLabel] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
   const DEFAULT_CAPACITY = 40;
   const MIN_CAPACITY = 10;
@@ -176,6 +199,36 @@ export default function MainDashboard({
     await supabase.auth.signOut();
   };
 
+  const handleAddressSearch = async () => {
+    if (!addressQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(addressQuery.trim())}`,
+      );
+      if (!res.ok) {
+        throw new Error(`Geocoding request failed with status ${res.status}`);
+      }
+      const results: Array<{
+        lat: string;
+        lon: string;
+        display_name: string;
+      }> = await res.json();
+      if (results.length > 0) {
+        const { lat, lon, display_name } = results[0];
+        setSearchPin([parseFloat(lat), parseFloat(lon)]);
+        setSearchPinLabel(display_name);
+      } else {
+        alert("Address not found. Try a more specific address.");
+      }
+    } catch (err) {
+      console.error("Address search error:", err);
+      alert("Error searching for address. Please try again.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const activeBuses = Object.values(buses);
   const activeBusPos: LatLngExpression =
     activeBuses.length > 0
@@ -306,7 +359,28 @@ export default function MainDashboard({
         </div>
       </div>
 
-      <div className="flex-1">
+      <div className="flex-1 relative">
+        {/* Address search bar */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1000] flex gap-2 w-[460px] max-w-[calc(100%-2rem)]">
+          <input
+            type="text"
+            placeholder="🏠 Search student home address..."
+            value={addressQuery}
+            onChange={(e) => setAddressQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAddressSearch();
+            }}
+            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 shadow-lg bg-white text-gray-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <button
+            onClick={handleAddressSearch}
+            disabled={isSearching}
+            className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-700 transition text-sm font-semibold disabled:opacity-60"
+          >
+            {isSearching ? "..." : "Search"}
+          </button>
+        </div>
+
         <MapContainer center={activeBusPos} zoom={15} className="h-full w-full">
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
           {activeBuses.map((busLoc) => {
@@ -326,7 +400,17 @@ export default function MainDashboard({
               </Marker>
             );
           })}
+          {searchPin && (
+            <Marker position={searchPin} icon={homeIcon}>
+              <Popup>
+                <b>📍 Student Home</b>
+                <br />
+                {searchPinLabel}
+              </Popup>
+            </Marker>
+          )}
           <FollowBus center={activeBusPos} />
+          <FlyToAddress center={searchPin} />
         </MapContainer>
       </div>
     </div>
