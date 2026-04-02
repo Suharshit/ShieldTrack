@@ -17,12 +17,15 @@ interface StudentPanelProps {
   ) => void;
   /** Cancel map click mode */
   onCancelMapClick: () => void;
+  /** Focus map on student location */
+  onFocusLocation?: (lat: number, lng: number) => void;
 }
 
 export default function StudentPanel({
   tenantId,
   onRequestMapClick,
   onCancelMapClick,
+  onFocusLocation,
 }: StudentPanelProps) {
   const [students, setStudents] = useState<Student[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -164,28 +167,32 @@ export default function StudentPanel({
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4 h-full bg-[#fcfdff]">
       {/* Registration Form */}
-      <div className="bg-violet-50 rounded-xl p-4 border border-violet-200">
-        <h3 className="m-0 mb-3 text-sm font-bold text-[#1a237e] flex items-center gap-1.5">
-          <PiStudentBold size={18} className="text-violet-600" />
-          <span>Register Student</span>
+      <div className="bg-violet-50/50 rounded-2xl p-5 border border-violet-100 shadow-sm transition-all hover:shadow-md">
+        <h3 className="m-0 mb-4 text-sm font-black text-[#1a237e] flex items-center gap-2">
+          <div className="p-1.5 bg-violet-600 rounded-lg text-white">
+            <PiStudentBold size={16} />
+          </div>
+          <span>Enroll New Student</span>
         </h3>
-        <form onSubmit={handleRegister} className="flex flex-col gap-2.5">
-          <input
-            type="text"
-            placeholder="Student name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-          />
-          <input
-            type="text"
-            placeholder="Registration No."
-            value={registrationNo}
-            onChange={(e) => setRegistrationNo(e.target.value)}
-            className="px-3 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400"
-          />
+        <form onSubmit={handleRegister} className="flex flex-col gap-3">
+          <div className="grid grid-cols-1 gap-2.5">
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="px-3.5 py-2.5 rounded-xl border border-violet-100 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 font-medium transition-all"
+            />
+            <input
+              type="text"
+              placeholder="Registration / ID Number"
+              value={registrationNo}
+              onChange={(e) => setRegistrationNo(e.target.value)}
+              className="px-3.5 py-2.5 rounded-xl border border-violet-100 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 font-medium transition-all"
+            />
+          </div>
 
           {/* Location section */}
           {lat !== null && lng !== null ? (
@@ -236,9 +243,9 @@ export default function StudentPanel({
           <button
             type="submit"
             disabled={saving || lat === null}
-            className="px-4 py-2 bg-violet-600 text-white font-semibold border-none rounded-lg cursor-pointer hover:bg-violet-700 transition text-sm disabled:opacity-40"
+            className="mt-2 px-5 py-3 bg-[#1a237e] text-white font-bold border-none rounded-xl cursor-pointer hover:bg-indigo-900 transition-all text-sm disabled:opacity-40 shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
           >
-            {saving ? "Saving..." : "Register Student"}
+            {saving ? "Registering..." : <><PiStudentBold size={18} /> Register Student</>}
           </button>
         </form>
       </div>
@@ -314,56 +321,66 @@ export default function StudentPanel({
               return (
                 <div
                   key={student.id}
-                  className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition"
+                  onClick={() => student.lat && student.lng && onFocusLocation?.(student.lat, student.lng)}
+                  className="group bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-violet-200 transition-all duration-300 cursor-pointer relative"
                 >
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-3">
                     {showBulkAssign && (
-                      <input
-                        type="checkbox"
-                        checked={bulkSelected.has(student.id)}
-                        onChange={() => toggleBulkSelect(student.id)}
-                        className="mt-1 accent-violet-600"
-                      />
+                      <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={bulkSelected.has(student.id)}
+                          onChange={() => toggleBulkSelect(student.id)}
+                          className="w-4 h-4 accent-violet-600 cursor-pointer"
+                        />
+                      </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="m-0 font-bold text-gray-800 text-sm truncate">
-                          {student.name}
-                        </p>
-                        {student.registration_no && (
-                          <p className="m-0 text-[10px] text-violet-600 font-bold uppercase mt-0.5">
-                            ID: {student.registration_no}
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="m-0 font-black text-gray-900 text-base truncate">
+                            {student.name}
                           </p>
-                        )}
+                          {student.registration_no && (
+                            <p className="m-0 text-[10px] text-violet-600 font-black uppercase tracking-widest mt-0.5">
+                              #{student.registration_no}
+                            </p>
+                          )}
+                        </div>
                         <button
-                          onClick={() =>
-                            handleDeleteStudent(student.id, student.name)
-                          }
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition bg-transparent border-none cursor-pointer text-xs shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStudent(student.id, student.name);
+                          }}
+                          className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all border-none bg-transparent cursor-pointer"
                         >
-                          <PiTrashBold />
+                          <PiTrashBold size={18} />
                         </button>
                       </div>
+
                       {student.address && (
-                        <p className="m-0 text-xs text-gray-400 truncate mt-0.5 flex items-center gap-1">
-                          <PiMapPinFill className="text-violet-400 shrink-0" />{" "}
+                        <p className="m-0 text-xs text-gray-500 truncate mt-2 flex items-center gap-1.5 font-medium">
+                          <PiMapPinFill className="text-violet-400 shrink-0" size={14} />
                           {student.address}
                         </p>
                       )}
-                      <div className="flex items-center gap-2 mt-1.5">
+
+                      <div className="flex items-center gap-3 mt-3.5">
                         {routeName ? (
-                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full">
+                          <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-full border border-indigo-100 uppercase tracking-tight">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
                             {routeName}
-                          </span>
+                          </div>
                         ) : (
                           <select
                             value=""
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               handleAssignRoute(student.id, e.target.value)
                             }
-                            className="px-2 py-0.5 rounded border border-gray-200 text-xs text-gray-500 bg-gray-50"
+                            className="px-3 py-1.5 rounded-xl border border-gray-100 text-[11px] font-bold text-gray-500 bg-gray-50 hover:bg-white hover:border-violet-200 transition-colors cursor-pointer outline-none"
                           >
-                            <option value="">Assign route...</option>
+                            <option value="">Assign to Route...</option>
                             {routes.map((r) => (
                               <option key={r.id} value={r.id}>
                                 {r.name}
@@ -371,15 +388,23 @@ export default function StudentPanel({
                             ))}
                           </select>
                         )}
+                        
                         {routeName && (
                           <button
-                            onClick={() => handleAssignRoute(student.id, "")}
-                            className="text-xs text-gray-400 hover:text-red-500 bg-transparent border-none cursor-pointer"
-                            title="Unassign from route"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAssignRoute(student.id, "");
+                            }}
+                            className="text-[10px] font-bold text-gray-400 hover:text-rose-500 transition-colors border-none bg-transparent cursor-pointer uppercase tracking-tighter"
                           >
                             Unassign
                           </button>
                         )}
+
+                        <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <PiMapPinFill size={14} className="text-violet-600" />
+                            <span className="text-[10px] font-black text-violet-600 uppercase">View Location</span>
+                        </div>
                       </div>
                     </div>
                   </div>

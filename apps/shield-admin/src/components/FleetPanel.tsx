@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback, FormEvent } from "react";
-import { PiBusBold, PiPlusBold, PiTrashBold } from "react-icons/pi";
+import { PiBusBold, PiPlusBold, PiTrashBold, PiMapPinFill } from "react-icons/pi";
 import { supabase } from "../supabase";
 import type { Bus, Route, User } from "../supabase";
 
 interface FleetPanelProps {
   tenantId: string;
+  onFocusLocation?: (lat: number, lng: number) => void;
 }
 
 const DEFAULT_CAPACITY = 40;
 const MIN_CAPACITY = 10;
 const MAX_CAPACITY = 100;
 
-export default function FleetPanel({ tenantId }: FleetPanelProps) {
+export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProps) {
   const [fleetList, setFleetList] = useState<Bus[]>([]);
   const [driverList, setDriverList] = useState<User[]>([]);
   const [routeList, setRouteList] = useState<Route[]>([]);
@@ -49,6 +50,19 @@ export default function FleetPanel({ tenantId }: FleetPanelProps) {
     if (data) setRouteList(data);
   }, [tenantId]);
 
+  const handleFocusBus = async (busId: string) => {
+    if (!onFocusLocation) return;
+    const { data } = await supabase
+      .from("latest_bus_locations")
+      .select("lat, lng")
+      .eq("bus_id", busId)
+      .single();
+    
+    if (data) {
+      onFocusLocation(data.lat, data.lng);
+    }
+  };
+
   useEffect(() => {
     fetchFleet();
     fetchDrivers();
@@ -85,7 +99,8 @@ export default function FleetPanel({ tenantId }: FleetPanelProps) {
     setSaving(false);
   };
 
-  const handleDeleteBus = async (busId: string, plate: string) => {
+  const handleDeleteBus = async (e: React.MouseEvent, busId: string, plate: string) => {
+    e.stopPropagation();
     if (!confirm(`Delete bus ${plate}? This cannot be undone.`)) return;
     const { error } = await supabase.from("buses").delete().eq("id", busId);
     if (error) alert("Error deleting bus: " + error.message);
@@ -103,53 +118,49 @@ export default function FleetPanel({ tenantId }: FleetPanelProps) {
   );
 
   return (
-    <div className="flex flex-col gap-4 p-4">
+    <div className="flex flex-col gap-4 p-4 h-full bg-[#fcfdff]">
       {/* Registration Form */}
-      <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
-        <h3 className="m-0 mb-3 text-sm font-bold text-[#1a237e] flex items-center gap-1.5">
-          <PiBusBold size={18} className="text-indigo-600" />
+      <div className="bg-indigo-50/50 rounded-2xl p-5 border border-indigo-100 shadow-sm">
+        <h3 className="m-0 mb-4 text-sm font-black text-[#1a237e] flex items-center gap-2">
+          <div className="p-1.5 bg-indigo-600 rounded-lg text-white">
+            <PiBusBold size={16} />
+          </div>
           <span>Register New Vehicle</span>
         </h3>
-        <form onSubmit={handleRegisterBus} className="flex flex-col gap-2.5">
+        <form onSubmit={handleRegisterBus} className="flex flex-col gap-3">
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Plate Number"
+              placeholder="Plate Number (e.g. PB-01-1234)"
               value={newPlateNumber}
               onChange={(e) => setNewPlateNumber(e.target.value)}
-              className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 min-w-0"
+              className="flex-1 px-3.5 py-2.5 rounded-xl border border-indigo-100 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 min-w-0 transition-all font-medium"
             />
             <input
               type="number"
               placeholder="Seats"
               value={newBusCapacity}
               onChange={(e) => setNewBusCapacity(e.target.value)}
-              className="w-16 px-2 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-20 px-2 py-2.5 rounded-xl border border-indigo-100 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 font-medium"
               min={MIN_CAPACITY}
               max={MAX_CAPACITY}
             />
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-indigo-600 text-white font-semibold border-none rounded-lg cursor-pointer hover:bg-indigo-700 transition text-sm disabled:opacity-50 shrink-0 flex items-center justify-center gap-2"
+              className="px-5 py-2.5 bg-[#1a237e] text-white font-bold border-none rounded-xl cursor-pointer hover:bg-indigo-900 transition-all text-sm disabled:opacity-50 shrink-0 flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
             >
-              {saving ? (
-                "..."
-              ) : (
-                <>
-                  <PiPlusBold size={16} /> Add
-                </>
-              )}
+              {saving ? "..." : <><PiPlusBold size={18} /> Add</>}
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2.5">
             <select
               value={selectedDriverId}
               onChange={(e) => setSelectedDriverId(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="px-3.5 py-2.5 rounded-xl border border-indigo-100 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 font-medium appearance-none cursor-pointer"
             >
-              <option value="">Assign Driver (optional)</option>
+              <option value="">Assign Driver (Optional)</option>
               {driverList.map((driver) => (
                 <option key={driver.id} value={driver.id}>
                   {driver.email || `Driver ${driver.id.slice(0, 8)}`}
@@ -160,9 +171,9 @@ export default function FleetPanel({ tenantId }: FleetPanelProps) {
             <select
               value={selectedRouteId}
               onChange={(e) => setSelectedRouteId(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-300 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="px-3.5 py-2.5 rounded-xl border border-indigo-100 text-gray-800 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 font-medium appearance-none cursor-pointer"
             >
-              <option value="">Default Route (optional)</option>
+              <option value="">Default Route (Optional)</option>
               {routeList.map((route) => (
                 <option key={route.id} value={route.id}>
                   {route.name}
@@ -174,53 +185,93 @@ export default function FleetPanel({ tenantId }: FleetPanelProps) {
       </div>
 
       {/* Fleet List */}
-      <div className="flex-1 overflow-y-auto">
-        <h3 className="m-0 mb-2 text-xs font-bold text-gray-500 uppercase tracking-wider">
-          Fleet ({fleetList.length} vehicles)
-        </h3>
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <h3 className="m-0 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+            Fleet Directory
+          </h3>
+          <span className="px-2 py-0.5 bg-gray-100 rounded-full text-[10px] font-bold text-gray-500">
+            {fleetList.length} Vehicles
+          </span>
+        </div>
+        
         {fleetList.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">
-            No vehicles registered yet.
-          </p>
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-2 opacity-50">
+             <PiBusBold size={48} />
+             <p className="text-sm font-medium italic">No vehicles registered yet.</p>
+          </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5 pb-4">
             {fleetList.map((bus) => (
               <div
                 key={bus.id}
-                className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition"
+                onClick={() => handleFocusBus(bus.id)}
+                className="group flex flex-col bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-200 transition-all duration-300 cursor-pointer relative overflow-hidden"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                    <PiBusBold size={20} />
+                {/* Decorative background element */}
+                <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                  <PiBusBold size={80} />
+                </div>
+
+                <div className="flex items-center justify-between relative z-10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 transition-colors group-hover:bg-indigo-600 group-hover:text-white">
+                      <PiBusBold size={24} />
+                    </div>
+                    <div>
+                      <p className="m-0 font-black text-gray-900 text-base flex items-center gap-2">
+                        {bus.plate_number}
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded uppercase">Active</span>
+                      </p>
+                      <p className="m-0 text-xs font-bold text-gray-400 mt-0.5">
+                        {bus.capacity} Seater Luxury Coach
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="m-0 font-bold text-gray-800 text-sm">
-                      {bus.plate_number}
+                  <button
+                    onClick={(e) => handleDeleteBus(e, bus.id, bus.plate_number)}
+                    className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all border-none cursor-pointer"
+                    title="Delete bus"
+                  >
+                    <PiTrashBold size={18} />
+                  </button>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-50 flex flex-col gap-2 relative z-10">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
+                    <p className="m-0 text-[11px] text-gray-500 font-semibold">
+                      <span className="text-gray-400 uppercase tracking-tighter mr-1">Driver:</span>
+                      <span className="text-gray-700">
+                        {bus.driver_id ? driverNameById.get(bus.driver_id) : "Not Assigned"}
+                      </span>
                     </p>
-                    <p className="m-0 text-xs text-gray-400">
-                      {bus.capacity} seats
-                    </p>
-                    <p className="m-0 text-xs text-gray-500 mt-1">
-                      Driver:{" "}
-                      {bus.driver_id
-                        ? driverNameById.get(bus.driver_id) || "Assigned"
-                        : "Unassigned"}
-                    </p>
-                    <p className="m-0 text-xs text-gray-500">
-                      Default route:{" "}
-                      {bus.default_route_id
-                        ? routeNameById.get(bus.default_route_id) || "Assigned"
-                        : "Not set"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
+                    <p className="m-0 text-[11px] text-gray-500 font-semibold">
+                      <span className="text-gray-400 uppercase tracking-tighter mr-1">Route:</span>
+                      <span className="text-gray-700">
+                        {bus.default_route_id ? routeNameById.get(bus.default_route_id) : "Dynamic Routing"}
+                      </span>
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDeleteBus(bus.id, bus.plate_number)}
-                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition bg-transparent border-none cursor-pointer text-xs"
-                  title="Delete bus"
-                >
-                  <PiTrashBold />
-                </button>
+
+                <div className="mt-4 flex items-center justify-between relative z-10">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleFocusBus(bus.id);
+                      }}
+                      className="flex items-center gap-1.5 text-[10px] font-black text-indigo-600 uppercase tracking-wider hover:text-indigo-800 transition-colors border-none bg-transparent cursor-pointer"
+                    >
+                      <PiMapPinFill size={14} /> Locate on Map
+                    </button>
+                    <span className="text-[10px] text-gray-300 font-mono">
+                      v1.4.0
+                    </span>
+                </div>
               </div>
             ))}
           </div>
