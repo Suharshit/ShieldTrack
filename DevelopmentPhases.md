@@ -2,7 +2,7 @@
 
 > **Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603**
 
-![42%](https://progress-bar.xyz/42/?title=Project%20completed)
+![36%](https://progress-bar.xyz/36/?title=Project%20completed)
 
 **Stack:** Turborepo · Expo (mobile) · React/Vite (admin) · Node.js (API) · Supabase
 
@@ -1371,7 +1371,7 @@ export interface DeviationAlert {
 **Module 0.1 — Monorepo Setup** 🔴
 
 - [x] Turborepo root initialised
-- [~] `apps/mobile`, `apps/shield-admin`, `apps/api` in place
+- [x] `apps/mobile`, `apps/shield-admin`, `apps/api` in place
 - [x] `packages/types`, `packages/utils` in place
 - [x] Root `package.json` workspaces verified
 - [x] `turbo.json` pipeline configured
@@ -1391,6 +1391,8 @@ export interface DeviationAlert {
 - [x] Migration 008 — geofence trigger deployed and tested
 - [x] Migration 009 — ML prediction tables
 - [x] Migration 010 — latest_bus_locations optimization view
+- [x] Schema patch — `buses` now stores `driver_id` + `default_route_id`
+- [x] Schema patch — `trips.assignment_id` nullable + daily manual unique assignment lock removed
 - [x] Supabase Realtime enabled: `bus_locations`, `deviation_alerts`, `sos_events`, `bus_eta_predictions`, `bus_route_recommendations`
 
 **Module 0.3 — Shared Packages** 🔴
@@ -1403,7 +1405,7 @@ export interface DeviationAlert {
 
 - [ ] `apps/mobile/lib/supabase.ts` — AsyncStorage auth
 - [ ] `apps/api/src/lib/supabase.ts` — service role client
-- [ ] `apps/shield-admin/src/lib/supabase.ts` — anon client
+- [x] `apps/shield-admin/src/supabase.ts` — anon client
 - [x] Central `.env` root file configured for all apps
 
 **Module 0.5 — Seed Data** 🟡
@@ -1434,9 +1436,9 @@ export interface DeviationAlert {
 
 **Module 1B — Mobile Auth** 🔴
 
-- [ ] `apps/mobile/app/login.tsx` — UI for both driver and parent login
-- [ ] Role detection from JWT, session persisted via AsyncStorage
-- [ ] `apps/mobile/app/_layout.tsx` — role fork on app load
+- [~] `apps/mobile/app/login.tsx` — driver login UI complete (parent mode pending)
+- [~] Session persistence via AsyncStorage in `apps/mobile/lib/session.ts` (role split pending)
+- [~] `apps/mobile/app/_layout.tsx` — auth gate wired (parent fork pending)
 - [ ] Redirect to `/(driver)/trip` or `/(parent)/tracker` based on role
 - [ ] Device ID captured via `expo-device` on driver login
 - [ ] Device mismatch error shown
@@ -1468,8 +1470,8 @@ export interface DeviationAlert {
 **Module 2B — Driver Trip Screen** 🟡
 
 - [ ] `apps/mobile/app/(driver)/trip.tsx` UI complete
-- [ ] Shows today's assignment (bus plate + route name)
-- [ ] "Go Online" button → `POST /trips/start` → starts GPS task
+- [ ] Shows linked bus + default route from standing assignment
+- [ ] "Go Online" button → `POST /trips/start` → auto-creates audit assignment + starts GPS task
 - [ ] Live speed display on screen
 - [ ] ONLINE / OFFLINE status indicator
 - [ ] "End Route" button → `POST /trips/:id/end` → stops GPS task
@@ -1499,7 +1501,7 @@ export interface DeviationAlert {
 - [x] Synthetic data generated and ETA model trained
 - [ ] Active GPS simulate script updated to call `POST /predict/eta`
 - [ ] Parent app updated to subscribe to `bus_eta_predictions` table via Realtime
-- [ ] Admin panel updated to display alternative `bus_route_recommendations`
+- [x] Admin panel updated to display alternative `bus_route_recommendations`
 
 ---
 
@@ -1551,29 +1553,31 @@ export interface DeviationAlert {
 **Module 4A — Bus Management** 🟢
 
 - [ ] `GET /fleet/buses` + `POST /fleet/buses` + `DELETE /fleet/buses/:id`
-- [ ] Admin UI: buses table + add form + delete
+- [x] Admin UI: buses table + add form + optional driver/default-route assignment
 
 **Module 4B — Route Management** 🟢
 
 - [ ] `GET /fleet/routes` + `POST /fleet/routes` + `DELETE /fleet/routes/:id`
-- [ ] Admin UI: routes list + form (polyline as JSON textarea for MVP)
+- [x] Admin UI: route builder with map stops and saved polylines
 
 **Module 4C — Driver Management** 🟢
 
 - [ ] `GET /fleet/drivers` + `POST /users/invite` (driver)
-- [ ] Admin UI: drivers table + invite form
+- [x] Admin UI: drivers table + invite form
 
 **Module 4D — Student & Parent Management** 🟢
 
 - [ ] `GET /students` + `POST /fleet/students` + `POST /fleet/students/:id/link-parent`
 - [ ] `POST /users/invite` (parent) — returns institute code + student ID
-- [ ] Admin UI: students table + parent link modal
+- [~] Admin UI: students table + route assignment workflow (parent link modal pending)
 
-**Module 4E — Trip Assignment** 🟡
+**Module 4E — Auto Trip Start + Assignment Audit** 🟡
 
-- [ ] `POST /assignments` + `GET /assignments/today`
-- [ ] Admin UI: assignment form (driver + bus + route + date)
-- [ ] Driver trip screen reads today's assignment on load
+- [x] `buses` stores standing `driver_id` + `default_route_id`
+- [x] `trips.assignment_id` supports auto-start flow (nullable)
+- [ ] `POST /trips/start` auto-creates `trip_assignments` row for reporting/audit
+- [ ] `POST /trips/start` creates `trips` row from bus standing assignment
+- [ ] Driver trip screen starts without pre-created morning assignment
 
 ---
 
