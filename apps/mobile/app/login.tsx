@@ -21,23 +21,38 @@ const getDeviceId = (): string | undefined => {
 
 export default function LoginScreen() {
 	const router = useRouter();
+	const [mode, setMode] = useState<'driver' | 'parent'>('driver');
+	
+	// Driver fields
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
+	
+	// Parent fields
+	const [instituteCode, setInstituteCode] = useState('');
+	const [registrationNo, setRegistrationNo] = useState('');
+	
 	const [error, setError] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 
-	const canSubmit = email.trim().length > 0 && password.trim().length > 0;
+	const canSubmitDriver = email.trim().length > 0 && password.trim().length > 0;
+	const canSubmitParent = instituteCode.trim().length > 0 && registrationNo.trim().length > 0;
+	const canSubmit = mode === 'driver' ? canSubmitDriver : canSubmitParent;
 
 	const handleLogin = async () => {
 		if (!canSubmit || submitting) return;
 		setSubmitting(true);
 		setError(null);
 
-		const result = await apiClient.login({
-			email: email.trim(),
-			password,
-			device_id: getDeviceId(),
-		});
+		const result = mode === 'driver'
+			? await apiClient.login({
+					email: email.trim(),
+					password,
+					device_id: getDeviceId(),
+			  })
+			: await apiClient.parentLogin({
+					institute_code: instituteCode.trim(),
+					registration_no: registrationNo.trim(),
+			  });
 
 		if (!result.ok) {
 			setError(result.error.error.message || 'Login failed');
@@ -47,47 +62,94 @@ export default function LoginScreen() {
 
 		await saveSession(result.data.session);
 		setSubmitting(false);
-		router.replace('/(driver)/trip');
+		
+		if (result.data.session.role === 'parent') {
+			router.replace('/tracker');
+		} else {
+			router.replace('/trip');
+		}
 	};
 
 	return (
 		<KeyboardAvoidingView
-			behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+			{...(Platform.OS === 'ios' ? { behavior: 'padding' } : {})}
 			style={styles.container}
 		>
 			<View style={styles.card}>
+				<View style={styles.toggleContainer}>
+					<Pressable
+						style={[styles.toggleButton, mode === 'driver' ? styles.toggleButtonActive : null]}
+						onPress={() => { setMode('driver'); setError(null); }}
+					>
+						<Text style={[styles.toggleText, mode === 'driver' ? styles.toggleTextActive : null]}>Driver</Text>
+					</Pressable>
+					<Pressable
+						style={[styles.toggleButton, mode === 'parent' ? styles.toggleButtonActive : null]}
+						onPress={() => { setMode('parent'); setError(null); }}
+					>
+						<Text style={[styles.toggleText, mode === 'parent' ? styles.toggleTextActive : null]}>Parent</Text>
+					</Pressable>
+				</View>
+
 				<Text style={[styles.title, styles.text]}>
-					Driver Login
+					{mode === 'driver' ? 'Driver Login' : 'Parent Login'}
 				</Text>
 				<Text style={[styles.subtitle, styles.text]}>
-					Sign in to start your route
+					{mode === 'driver' ? 'Sign in to start your route' : 'Track your student\'s bus'}
 				</Text>
 
-				<TextInput
-					placeholder="Email"
-					autoCapitalize="none"
-					autoComplete="email"
-					keyboardType="email-address"
-					value={email}
-					onChangeText={setEmail}
-					style={styles.input}
-					editable={!submitting}
-				/>
-				<TextInput
-					placeholder="Password"
-					secureTextEntry
-					value={password}
-					onChangeText={setPassword}
-					style={styles.input}
-					editable={!submitting}
-				/>
+				{mode === 'driver' ? (
+					<>
+						<TextInput
+							placeholder="Email"
+							placeholderTextColor="#888"
+							autoCapitalize="none"
+							autoComplete="email"
+							keyboardType="email-address"
+							value={email}
+							onChangeText={setEmail}
+							style={styles.input}
+							editable={!submitting}
+						/>
+						<TextInput
+							placeholder="Password"
+							placeholderTextColor="#888"
+							secureTextEntry={true}
+							value={password}
+							onChangeText={setPassword}
+							style={styles.input}
+							editable={!submitting}
+						/>
+					</>
+				) : (
+					<>
+						<TextInput
+							placeholder="Institute Code"
+							placeholderTextColor="#888"
+							autoCapitalize="characters"
+							value={instituteCode}
+							onChangeText={setInstituteCode}
+							style={styles.input}
+							editable={!submitting}
+						/>
+						<TextInput
+							placeholder="Registration No."
+							placeholderTextColor="#888"
+							autoCapitalize="characters"
+							value={registrationNo}
+							onChangeText={setRegistrationNo}
+							style={styles.input}
+							editable={!submitting}
+						/>
+					</>
+				)}
 
 				{error ? <Text style={[styles.error, styles.text]}>{error}</Text> : null}
 
 				<Pressable
-					style={[styles.button, !canSubmit && styles.buttonDisabled]}
+					style={[styles.button, (!canSubmit || submitting) ? styles.buttonDisabled : null]}
 					onPress={handleLogin}
-					disabled={!canSubmit || submitting}
+					disabled={!!(!canSubmit || submitting)}
 				>
 					{submitting ? (
 						<ActivityIndicator color="#ffffff" />
@@ -117,6 +179,29 @@ const styles = StyleSheet.create({
 		padding: 24,
 		gap: 12,
 	},
+	toggleContainer: {
+		flexDirection: 'row',
+		backgroundColor: '#1f1f26',
+		borderRadius: 8,
+		padding: 4,
+		marginBottom: 8,
+	},
+	toggleButton: {
+		flex: 1,
+		paddingVertical: 8,
+		alignItems: 'center',
+		borderRadius: 6,
+	},
+	toggleButtonActive: {
+		backgroundColor: '#2574ff',
+	},
+	toggleText: {
+		color: '#888',
+		fontWeight: '600',
+	},
+	toggleTextActive: {
+		color: '#ffffff',
+	},
 	title: {
 		fontSize: 28,
 		fontWeight: '700',
@@ -143,6 +228,7 @@ const styles = StyleSheet.create({
 		borderRadius: 10,
 		paddingVertical: 12,
 		alignItems: 'center',
+		marginTop: 8,
 	},
 	buttonDisabled: {
 		opacity: 0.5,
@@ -154,5 +240,6 @@ const styles = StyleSheet.create({
 	helper: {
 		opacity: 0.6,
 		fontSize: 12,
+		marginTop: 8,
 	},
 });

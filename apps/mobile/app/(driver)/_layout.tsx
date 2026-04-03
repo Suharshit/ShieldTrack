@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Redirect, Stack } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
+import { Redirect, Slot } from 'expo-router';
 
 import { loadSession } from '../../lib/session';
 
@@ -27,7 +27,7 @@ export default function DriverLayout() {
 	if (allowed === null) {
 		return (
 			<View style={styles.loading}>
-				<ActivityIndicator size="large" color="#2574ff" />
+				<Text style={styles.loadingText}>Loading Driver Stack...</Text>
 			</View>
 		);
 	}
@@ -36,7 +36,7 @@ export default function DriverLayout() {
 		return <Redirect href="/login" />;
 	}
 
-	return <Stack screenOptions={{ headerShown: false }} />;
+	return <Slot />;
 }
 
 const styles = StyleSheet.create({
@@ -45,5 +45,10 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		backgroundColor: '#0c0c0f',
+	},
+	loadingText: {
+		color: '#2574ff',
+		fontSize: 16,
+		fontWeight: '600',
 	},
 });

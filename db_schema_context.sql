@@ -1,5 +1,6 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
+-- WARNING: This schema is for context only and is not meant to be run directly.
+-- Table order and constraints may not be valid for full execution.
+-- For incremental changes, see the ALTER TABLE migration block at the bottom of this file.
 
 CREATE TABLE public.bus_eta_predictions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -90,6 +91,7 @@ CREATE TABLE public.students (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
   name text NOT NULL,
+  registration_no text NOT NULL DEFAULT '',
   route_id uuid,
   created_at timestamp with time zone DEFAULT now(),
   address text,
@@ -100,6 +102,8 @@ CREATE TABLE public.students (
   CONSTRAINT students_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
   CONSTRAINT students_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id)
 );
+CREATE UNIQUE INDEX students_tenant_regno_unique
+  ON public.students (tenant_id, registration_no);
 CREATE TABLE public.tenants (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
@@ -169,3 +173,16 @@ FROM
 ORDER BY
   bus_id,
   recorded_at DESC;
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 📦 MIGRATION: Apply these in Supabase SQL Editor for incremental changes
+-- Run this block once against an existing database (tables already created).
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Migration: Add registration_no to students (parent login identifier)
+ALTER TABLE public.students
+  ADD COLUMN IF NOT EXISTS registration_no text NOT NULL DEFAULT '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS students_tenant_regno_unique
+  ON public.students (tenant_id, registration_no);

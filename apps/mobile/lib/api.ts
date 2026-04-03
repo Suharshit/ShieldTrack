@@ -3,10 +3,12 @@ import {
   EndTripResponse,
   LoginRequest,
   LoginResponse,
+  ParentLoginRequest,
   StartTripResponse,
   TodayAssignment,
   Trip,
 } from '@shieldtrack/types';
+import { supabase } from './supabase';
 
 type ApiSuccess<T> = { ok: true; data: T; status: number };
 type ApiFailure = { ok: false; error: ApiErrorResponse; status: number };
@@ -15,7 +17,7 @@ export type ApiResult<T> = ApiSuccess<T> | ApiFailure;
 const DEFAULT_TIMEOUT_MS = 10000;
 
 const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || 'http://localhost:4000';
+  process.env.EXPO_PUBLIC_API_BASE_URL?.trim() || 'http://localhost:3001';
 
 const USE_MOCKS = process.env.EXPO_PUBLIC_USE_MOCKS === '1';
 
@@ -107,6 +109,23 @@ const mockLogin = async (): Promise<ApiResult<LoginResponse>> => ({
   },
 });
 
+const mockParentLogin = async (): Promise<ApiResult<LoginResponse>> => ({
+  ok: true,
+  status: 200,
+  data: {
+    session: {
+      user_id: 'user_mock_parent',
+      tenant_id: 'tenant_mock_1',
+      student_id: 'student_mock_1',
+      bus_id: 'bus_mock_1',
+      role: 'parent',
+      access_token: 'mock_access_token_parent',
+      refresh_token: 'mock_refresh_token_parent',
+      expires_at: nowIso(),
+    },
+  },
+});
+
 const mockAssignment = async (): Promise<ApiResult<TodayAssignment>> => ({
   ok: true,
   status: 200,
@@ -146,6 +165,59 @@ const mockEndTrip = async (
 export const apiClient = {
   login: async (payload: LoginRequest): Promise<ApiResult<LoginResponse>> => {
     if (USE_MOCKS) return mockLogin();
+
+    // Supabase native Auth implementation for Drivers
+    const { data: supaData, error } = await supabase.auth.signInWithPassword({
+      email: payload.email,
+      password: payload.password,
+    });
+
+    if (error || !supaData.user || !supaData.session) {
+      return {
+        ok: false,
+        status: error?.status ?? 401,
+        error: { error: { message: error?.message || 'Invalid credentials' } },
+      };
+    }
+
+    // Map the Supabase session token backwards into our internal ShieldTrack framework.
+    // IMPORTANT: Fall back to '' (not 'driver') so users without a role tag are blocked.
+    const userRole = supaData.user.app_metadata?.role || supaData.user.user_metadata?.role || '';
+    const tenantId = supaData.user.app_metadata?.tenant_id || supaData.user.user_metadata?.tenant_id || '';
+    const driverId = supaData.user.app_metadata?.driver_id || supaData.user.user_metadata?.driver_id || supaData.user.id;
+    const expiresAtIso = new Date((supaData.session.expires_at || 0) * 1000).toISOString();
+
+    if (userRole !== 'driver') {
+      await supabase.auth.signOut(); // Kick them out if not a driver
+      return {
+        ok: false,
+        status: 403,
+        error: { error: { message: 'Unauthorized: Driver access required. Ensure your account has the driver role.' } },
+      };
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      data: {
+        session: {
+          user_id: supaData.user.id,
+          tenant_id: tenantId,
+          driver_id: driverId,
+          role: 'driver',
+          access_token: supaData.session.access_token,
+          refresh_token: supaData.session.refresh_token,
+          expires_at: expiresAtIso,
+        },
+      },
+    };
+  },
+
+  parentLogin: async (payload: ParentLoginRequest): Promise<ApiResult<LoginResponse>> => {
+    if (USE_MOCKS) return mockParentLogin();
+    
+    // Parents hit our custom NodeJS REST backend because Supabase doesn't natively support 
+    // arbitrary field combination sign-in natively. Our node backend mints a custom JWT token.
     return requestJson<LoginResponse>(API_PATHS.login, {
       method: 'POST',
       body: JSON.stringify(payload),
