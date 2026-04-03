@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import {
   MapContainer,
@@ -46,7 +47,7 @@ interface DashboardMapProps {
 }
 
 function renderReactIcon(
-  component: React.ReactNode,
+  component: ReactNode,
   className: string,
   size: [number, number],
   anchor: [number, number],
@@ -94,6 +95,9 @@ const placementIcon = renderReactIcon(
   [26, 52],
 );
 
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:3001";
+
 function FollowBus({ center }: { center: LatLngExpression | null }) {
   const map = useMap();
 
@@ -131,14 +135,12 @@ function MapClickHandler({
       let address = "";
       try {
         const response = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
-          {
-            headers: {
-              "User-Agent": "ShieldTrack-Admin/1.0",
-            },
-          },
+          `${API_BASE_URL}/geocode/reverse?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
         );
-        const data = await response.json();
+        const data = (await response.json()) as { display_name?: string };
+        if (!response.ok) {
+          throw new Error("Reverse geocode proxy error");
+        }
         address = data.display_name || "";
       } catch {
         address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
