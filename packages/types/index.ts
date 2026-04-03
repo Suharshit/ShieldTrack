@@ -16,6 +16,8 @@ export interface Bus {
   tenant_id: string; 
   plate_number: string; 
   capacity: number; 
+  driver_id: string | null;
+  default_route_id: string | null;
 }
 export interface Stop { 
   name: string; 
@@ -48,7 +50,7 @@ export interface TripAssignment {
 export interface Trip { 
   id: string; 
   tenant_id: string; 
-  assignment_id: string; 
+  assignment_id: string | null; 
   bus_id: string; 
   route_id: string; 
   driver_id: string; 

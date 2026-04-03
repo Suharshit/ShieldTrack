@@ -1,12 +1,14 @@
 # ShieldTrack — Project Context
 
 ## Overview
+
 ShieldTrack is a school bus safety & tracking platform built as a multi-tenant monorepo (pnpm + Turborepo). It connects three roles: **Admins**, **Drivers**, and **Parents**, backed by Supabase (PostgreSQL + Auth) and a Python ML service.
 
 ---
 
 ## Monorepo Structure
-```
+
+```plaintext
 ShieldTrack/
 ├── apps/
 │   ├── mobile/          # React Native (Expo 54) — Driver & Parent app
@@ -26,6 +28,7 @@ ShieldTrack/
 ## Apps
 
 ### Mobile (`apps/mobile`) — Expo + React Native
+
 - Single login screen with a **Driver / Parent toggle**
 - **Driver login**: email + password → Supabase native `signInWithPassword`
 - **Parent login**: `institute_code` + `registration_no` → Node.js REST API (`/auth/login`) → custom JWT (7-day expiry)
@@ -35,6 +38,7 @@ ShieldTrack/
 - **All env vars are read from the root `.env`** — no separate mobile `.env` in use
 
 ### API (`apps/api`) — Express + TypeScript
+
 - Custom REST backend for operations Supabase Auth cannot handle natively
 - `/auth/login` (POST): validates `institute_code` → `tenants` table, then `registration_no` → `students` table, mints a custom JWT (7-day expiry) using `SUPABASE_JWT_SECRET`
 - Runs on **port 3001**; mobile reads base URL from `EXPO_PUBLIC_API_BASE_URL`
@@ -42,11 +46,13 @@ ShieldTrack/
 - Other route stubs: `/fleet`, `/sos`, `/trips` (in progress)
 
 ### Shield Admin (`apps/shield-admin`) — React + Vite
+
 - Admin dashboard for fleet monitoring (real-time bus locations via Supabase subscriptions)
 - Connects to Supabase with `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 - Manages: Tenants, Buses, Routes, Students, Trips, SOS Events, Deviation Alerts
 
 ### ML Backend (`backend/`) — FastAPI + Python
+
 - `POST /predict/eta` — ML model (scikit-learn pickle) predicts bus arrival time
 - `POST /predict/route` — Graph-based route optimizer returns ranked route options
 - `POST /predict/batch-eta` — Batch ETA for all buses (useful for simulation)
@@ -56,7 +62,9 @@ ShieldTrack/
 ---
 
 ## Database (Supabase / PostgreSQL)
+
 Key tables (all PKs are `uuid DEFAULT gen_random_uuid()`):
+
 - `tenants` — schools/institutes; has unique `institute_code`
 - `users` — drivers + admins; Supabase Auth–managed; has `role`, `tenant_id`, `device_id`
 - `students` — student records; has `registration_no` (unique per tenant, used for parent login), linked to `tenant_id` and optional `route_id`
@@ -72,10 +80,11 @@ Key tables (all PKs are `uuid DEFAULT gen_random_uuid()`):
 ---
 
 ## Key Environment Variables
+>
 > All apps read from the **single root `.env`** file. Do not create per-app `.env` files.
 
 | Variable | Used By | Notes |
-|---|---|---|
+| -------- | ------- | ----- |
 | `EXPO_PUBLIC_SUPABASE_URL` | Mobile | Supabase project URL |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Mobile | Public anon key |
 | `EXPO_PUBLIC_API_BASE_URL` | Mobile | Node API base URL — use LAN IP on physical devices |

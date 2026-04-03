@@ -39,9 +39,13 @@ CREATE TABLE public.buses (
   tenant_id uuid NOT NULL,
   plate_number text NOT NULL,
   capacity integer NOT NULL DEFAULT 40,
+  driver_id uuid,
+  default_route_id uuid,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT buses_pkey PRIMARY KEY (id),
-  CONSTRAINT buses_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id)
+  CONSTRAINT buses_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
+  CONSTRAINT buses_driver_id_fkey FOREIGN KEY (driver_id) REFERENCES public.users(id) ON DELETE SET NULL,
+  CONSTRAINT buses_default_route_id_fkey FOREIGN KEY (default_route_id) REFERENCES public.routes(id) ON DELETE SET NULL
 );
 CREATE UNIQUE INDEX buses_tenant_plate_unique ON public.buses (tenant_id, upper(plate_number));
 CREATE TABLE public.deviation_alerts (
@@ -87,9 +91,12 @@ CREATE TABLE public.students (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
   name text NOT NULL,
-  registration_no text NOT NULL DEFAULT '',
   route_id uuid,
   created_at timestamp with time zone DEFAULT now(),
+  address text,
+  lat double precision,
+  lng double precision,
+  registration_no text NOT NULL DEFAULT ''::text,
   CONSTRAINT students_pkey PRIMARY KEY (id),
   CONSTRAINT students_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id),
   CONSTRAINT students_route_id_fkey FOREIGN KEY (route_id) REFERENCES public.routes(id)
@@ -120,7 +127,7 @@ CREATE TABLE public.trip_assignments (
 CREATE TABLE public.trips (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
-  assignment_id uuid NOT NULL,
+  assignment_id uuid,
   bus_id uuid NOT NULL,
   route_id uuid NOT NULL,
   driver_id uuid NOT NULL,
