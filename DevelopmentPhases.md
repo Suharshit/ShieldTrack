@@ -2,7 +2,7 @@
 
 > **Team Latency Zero · Eclipse 6.0 · Open Innovation Track · EC603**
 
-![36%](https://progress-bar.xyz/36/?title=Project%20completed)
+![43%](https://progress-bar.xyz/43/?title=Project%20completed)
 
 **Stack:** Turborepo · Expo (mobile) · React/Vite (admin) · Node.js (API) · Supabase
 
@@ -297,6 +297,8 @@ CREATE TABLE buses (
   tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   plate_number TEXT NOT NULL,
   capacity    INT NOT NULL DEFAULT 40,
+  driver_id   UUID REFERENCES users(id) ON DELETE SET NULL,
+  default_route_id UUID,
   created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -306,7 +308,7 @@ CREATE TABLE routes (
   id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name      TEXT NOT NULL,
-  polyline  JSONB NOT NULL DEFAULT '[]', -- [{ lat, lng }, ...]
+  polyline  JSONB NOT NULL DEFAULT '[]', -- [[lat, lng], ...]
   stops     JSONB NOT NULL DEFAULT '[]', -- [{ name, lat, lng, order }, ...]
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -326,9 +328,16 @@ CREATE TABLE trip_assignments (
   route_id    UUID NOT NULL REFERENCES routes(id),
   driver_id   UUID NOT NULL REFERENCES users(id),
   assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(driver_id, assigned_date)
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+  -- Daily unique-assignment lock removed to support auto-start + manual reassignment.
 );
+
+ALTER TABLE buses
+  ADD CONSTRAINT buses_default_route_id_fkey
+  FOREIGN KEY (default_route_id) REFERENCES routes(id) ON DELETE SET NULL;
+
+CREATE INDEX idx_buses_driver_id        ON buses(driver_id);
+CREATE INDEX idx_buses_default_route_id ON buses(default_route_id);
 
 ALTER TABLE buses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE routes ENABLE ROW LEVEL SECURITY;
@@ -360,7 +369,7 @@ CREATE TYPE trip_status AS ENUM ('active', 'completed');
 CREATE TABLE trips (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id     UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  assignment_id UUID NOT NULL REFERENCES trip_assignments(id),
+  assignment_id UUID REFERENCES trip_assignments(id),
   bus_id        UUID NOT NULL REFERENCES buses(id),
   route_id      UUID NOT NULL REFERENCES routes(id),
   driver_id     UUID NOT NULL REFERENCES users(id),
@@ -754,7 +763,7 @@ Returns all buses for the authenticated admin's tenant.
       { "name": "Main Gate", "lat": 30.901, "lng": 75.857, "order": 1 },
       { "name": "Sector 12", "lat": 30.912, "lng": 75.861, "order": 2 }
     ],
-    "polyline": [{ "lat": 30.901, "lng": 75.857 }, "..."]
+    "polyline": [[30.901, 75.857], [30.902, 75.858], "..."]
   }
 ]
 ```
@@ -770,8 +779,8 @@ Returns all buses for the authenticated admin's tenant.
   "name": "Route B — South Campus",
   "stops": [{ "name": "Gate 2", "lat": 30.895, "lng": 75.85, "order": 1 }],
   "polyline": [
-    { "lat": 30.895, "lng": 75.85 },
-    { "lat": 30.897, "lng": 75.853 }
+    [30.895, 75.85],
+    [30.897, 75.853]
   ]
 }
 ```
@@ -1276,6 +1285,8 @@ export interface Bus {
   tenant_id: string;
   plate_number: string;
   capacity: number;
+  driver_id?: string | null;
+  default_route_id?: string | null;
 }
 export interface Stop {
   name: string;
@@ -1287,14 +1298,14 @@ export interface Route {
   id: string;
   tenant_id: string;
   name: string;
-  polyline: { lat: number; lng: number }[];
+  polyline: [number, number][];
   stops: Stop[];
 }
 export interface Student {
   id: string;
   tenant_id: string;
   name: string;
-  route_id: string;
+  route_id: string | null;
 }
 export interface TripAssignment {
   id: string;
@@ -1306,13 +1317,13 @@ export interface TripAssignment {
 export interface Trip {
   id: string;
   tenant_id: string;
-  assignment_id: string;
+  assignment_id: string | null;
   bus_id: string;
   route_id: string;
   driver_id: string;
   status: "active" | "completed";
   started_at: string;
-  ended_at?: string;
+  ended_at?: string | null;
 }
 export interface BusLocation {
   id: string;
@@ -1484,6 +1495,9 @@ export interface DeviationAlert {
 - [x] `apps/shield-admin/src/components/MainDashboard.tsx` with Leaflet.js
 - [x] Optimized initial load using `latest_bus_locations` view (replaces client-side reduction)
 - [x] Bus pins render and update position in real time
+- [x] Fleet map popups show ETA + confidence + last ping
+- [x] Admin fleet map has Live Follow ON/OFF toggle to control auto-centering
+- [x] Reverse geocoding moved to backend proxy endpoint (`apps/api`) for reliability
 - [ ] Tooltip: plate, driver name, speed, last update time
 - [ ] Offline bus shown as greyed-out pin
 
@@ -1611,6 +1625,12 @@ export interface DeviationAlert {
 - [ ] Loading skeletons on all data-fetch screens
 - [ ] Empty states on all list views
 - [ ] Error boundaries on admin web app
+- [x] Route-audit async race guarded (bus-scoped response application)
+- [x] Dashboard map view persistence now validates stored shape before use
+- [x] Latest insights fetch now resolves latest-per-bus (prevents chatty bus starvation)
+- [x] Trip-end realtime cleanup removes inactive buses + linked ETA/recommendations from live state
+- [x] Tenant-scoped approved-reroutes storage key prevents cross-tenant leakage
+- [x] Sidebar collapsed state removed from tab order/accessibility tree
 
 **Module 6B — Demo Data** 🔴
 

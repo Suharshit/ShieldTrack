@@ -1,8 +1,8 @@
 # ShieldTrack Monorepo
 
-![36%](https://progress-bar.xyz/36/?title=Project%20completed)
+![43%](https://progress-bar.xyz/43/?title=Project%20completed)
 
-Status: 36% weighted completion. Admin operations now include standing bus assignment (driver + default route), while mobile trip pipeline and alerting flow are still in progress.
+Status: 43% weighted completion. Admin operations now include standing bus assignment (driver + default route), while mobile trip pipeline and alerting flow are still in progress.
 
 ## Prerequisites
 
