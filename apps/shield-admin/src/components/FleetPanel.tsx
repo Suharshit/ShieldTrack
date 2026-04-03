@@ -1,5 +1,11 @@
 import { useState, useEffect, useCallback, FormEvent } from "react";
-import { PiBusBold, PiPlusBold, PiTrashBold, PiMapPinFill } from "react-icons/pi";
+import type { MouseEvent } from "react";
+import {
+  PiBusBold,
+  PiPlusBold,
+  PiTrashBold,
+  PiMapPinFill,
+} from "react-icons/pi";
 import { supabase } from "../supabase";
 import type { Bus, Route, User } from "../supabase";
 
@@ -12,7 +18,10 @@ const DEFAULT_CAPACITY = 40;
 const MIN_CAPACITY = 10;
 const MAX_CAPACITY = 100;
 
-export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProps) {
+export default function FleetPanel({
+  tenantId,
+  onFocusLocation,
+}: FleetPanelProps) {
   const [fleetList, setFleetList] = useState<Bus[]>([]);
   const [driverList, setDriverList] = useState<User[]>([]);
   const [routeList, setRouteList] = useState<Route[]>([]);
@@ -57,7 +66,7 @@ export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProp
       .select("lat, lng")
       .eq("bus_id", busId)
       .single();
-    
+
     if (data) {
       onFocusLocation(data.lat, data.lng);
     }
@@ -99,7 +108,11 @@ export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProp
     setSaving(false);
   };
 
-  const handleDeleteBus = async (e: React.MouseEvent, busId: string, plate: string) => {
+  const handleDeleteBus = async (
+    e: MouseEvent,
+    busId: string,
+    plate: string,
+  ) => {
     e.stopPropagation();
     if (!confirm(`Delete bus ${plate}? This cannot be undone.`)) return;
     const { error } = await supabase.from("buses").delete().eq("id", busId);
@@ -150,7 +163,13 @@ export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProp
               disabled={saving}
               className="px-5 py-2.5 bg-[#1a237e] text-white font-bold border-none rounded-xl cursor-pointer hover:bg-indigo-900 transition-all text-sm disabled:opacity-50 shrink-0 flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
             >
-              {saving ? "..." : <><PiPlusBold size={18} /> Add</>}
+              {saving ? (
+                "..."
+              ) : (
+                <>
+                  <PiPlusBold size={18} /> Add
+                </>
+              )}
             </button>
           </div>
 
@@ -194,11 +213,13 @@ export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProp
             {fleetList.length} Vehicles
           </span>
         </div>
-        
+
         {fleetList.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-2 opacity-50">
-             <PiBusBold size={48} />
-             <p className="text-sm font-medium italic">No vehicles registered yet.</p>
+            <PiBusBold size={48} />
+            <p className="text-sm font-medium italic">
+              No vehicles registered yet.
+            </p>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5 pb-4">
@@ -221,7 +242,9 @@ export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProp
                     <div>
                       <p className="m-0 font-black text-gray-900 text-base flex items-center gap-2">
                         {bus.plate_number}
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded uppercase">Active</span>
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded uppercase">
+                          Active
+                        </span>
                       </p>
                       <p className="m-0 text-xs font-bold text-gray-400 mt-0.5">
                         {bus.capacity} Seater Luxury Coach
@@ -229,7 +252,9 @@ export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProp
                     </div>
                   </div>
                   <button
-                    onClick={(e) => handleDeleteBus(e, bus.id, bus.plate_number)}
+                    onClick={(e) =>
+                      handleDeleteBus(e, bus.id, bus.plate_number)
+                    }
                     className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all border-none cursor-pointer"
                     title="Delete bus"
                   >
@@ -241,36 +266,44 @@ export default function FleetPanel({ tenantId, onFocusLocation }: FleetPanelProp
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>
                     <p className="m-0 text-[11px] text-gray-500 font-semibold">
-                      <span className="text-gray-400 uppercase tracking-tighter mr-1">Driver:</span>
+                      <span className="text-gray-400 uppercase tracking-tighter mr-1">
+                        Driver:
+                      </span>
                       <span className="text-gray-700">
-                        {bus.driver_id ? driverNameById.get(bus.driver_id) : "Not Assigned"}
+                        {bus.driver_id
+                          ? driverNameById.get(bus.driver_id)
+                          : "Not Assigned"}
                       </span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-sky-400"></div>
                     <p className="m-0 text-[11px] text-gray-500 font-semibold">
-                      <span className="text-gray-400 uppercase tracking-tighter mr-1">Route:</span>
+                      <span className="text-gray-400 uppercase tracking-tighter mr-1">
+                        Route:
+                      </span>
                       <span className="text-gray-700">
-                        {bus.default_route_id ? routeNameById.get(bus.default_route_id) : "Dynamic Routing"}
+                        {bus.default_route_id
+                          ? routeNameById.get(bus.default_route_id)
+                          : "Dynamic Routing"}
                       </span>
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between relative z-10">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFocusBus(bus.id);
-                      }}
-                      className="flex items-center gap-1.5 text-[10px] font-black text-indigo-600 uppercase tracking-wider hover:text-indigo-800 transition-colors border-none bg-transparent cursor-pointer"
-                    >
-                      <PiMapPinFill size={14} /> Locate on Map
-                    </button>
-                    <span className="text-[10px] text-gray-300 font-mono">
-                      v1.4.0
-                    </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleFocusBus(bus.id);
+                    }}
+                    className="flex items-center gap-1.5 text-[10px] font-black text-indigo-600 uppercase tracking-wider hover:text-indigo-800 transition-colors border-none bg-transparent cursor-pointer"
+                  >
+                    <PiMapPinFill size={14} /> Locate on Map
+                  </button>
+                  <span className="text-[10px] text-gray-300 font-mono">
+                    v1.4.0
+                  </span>
                 </div>
               </div>
             ))}

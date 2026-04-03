@@ -245,7 +245,13 @@ export default function StudentPanel({
             disabled={saving || lat === null}
             className="mt-2 px-5 py-3 bg-[#1a237e] text-white font-bold border-none rounded-xl cursor-pointer hover:bg-indigo-900 transition-all text-sm disabled:opacity-40 shadow-lg shadow-indigo-100 flex items-center justify-center gap-2"
           >
-            {saving ? "Registering..." : <><PiStudentBold size={18} /> Register Student</>}
+            {saving ? (
+              "Registering..."
+            ) : (
+              <>
+                <PiStudentBold size={18} /> Register Student
+              </>
+            )}
           </button>
         </form>
       </div>
@@ -321,12 +327,19 @@ export default function StudentPanel({
               return (
                 <div
                   key={student.id}
-                  onClick={() => student.lat && student.lng && onFocusLocation?.(student.lat, student.lng)}
+                  onClick={() =>
+                    student.lat != null &&
+                    student.lng != null &&
+                    onFocusLocation?.(student.lat, student.lng)
+                  }
                   className="group bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-violet-200 transition-all duration-300 cursor-pointer relative"
                 >
                   <div className="flex items-start gap-3">
                     {showBulkAssign && (
-                      <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                      <div
+                        className="mt-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <input
                           type="checkbox"
                           checked={bulkSelected.has(student.id)}
@@ -360,7 +373,10 @@ export default function StudentPanel({
 
                       {student.address && (
                         <p className="m-0 text-xs text-gray-500 truncate mt-2 flex items-center gap-1.5 font-medium">
-                          <PiMapPinFill className="text-violet-400 shrink-0" size={14} />
+                          <PiMapPinFill
+                            className="text-violet-400 shrink-0"
+                            size={14}
+                          />
                           {student.address}
                         </p>
                       )}
@@ -388,7 +404,7 @@ export default function StudentPanel({
                             ))}
                           </select>
                         )}
-                        
+
                         {routeName && (
                           <button
                             onClick={(e) => {
@@ -402,8 +418,10 @@ export default function StudentPanel({
                         )}
 
                         <div className="ml-auto flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <PiMapPinFill size={14} className="text-violet-600" />
-                            <span className="text-[10px] font-black text-violet-600 uppercase">View Location</span>
+                          <PiMapPinFill size={14} className="text-violet-600" />
+                          <span className="text-[10px] font-black text-violet-600 uppercase">
+                            View Location
+                          </span>
                         </div>
                       </div>
                     </div>

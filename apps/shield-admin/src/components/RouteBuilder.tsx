@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, FormEvent } from "react";
+import { useState, useEffect, useCallback, FormEvent, useRef } from "react";
 import {
   PiMapTrifoldBold,
   PiPencilBold,
@@ -50,6 +50,47 @@ async function fetchOSRMRoute(stops: RouteStop[]): Promise<[number, number][]> {
   return stops.map((s) => [s.lat, s.lng]);
 }
 
+function normalizeRouteStops(rawStops: unknown): RouteStop[] {
+  if (!Array.isArray(rawStops)) return [];
+
+  return rawStops
+    .map((raw, index) => {
+      if (!raw || typeof raw !== "object") return null;
+
+      const candidate = raw as Partial<RouteStop>;
+      if (
+        typeof candidate.lat !== "number" ||
+        typeof candidate.lng !== "number"
+      ) {
+        return null;
+      }
+
+      const normalizedName =
+        typeof candidate.name === "string" && candidate.name.trim().length > 0
+          ? candidate.name
+          : `Stop ${index + 1}`;
+      const normalizedOrder =
+        typeof candidate.order === "number" &&
+        Number.isFinite(candidate.order) &&
+        candidate.order > 0
+          ? candidate.order
+          : index + 1;
+
+      return {
+        name: normalizedName,
+        lat: candidate.lat,
+        lng: candidate.lng,
+        order: normalizedOrder,
+        ...(typeof candidate.arrival_time === "string"
+          ? { arrival_time: candidate.arrival_time }
+          : {}),
+      };
+    })
+    .filter((stop): stop is RouteStop => stop !== null)
+    .sort((a, b) => a.order - b.order)
+    .map((stop, index) => ({ ...stop, order: index + 1 }));
+}
+
 export default function RouteBuilder({
   tenantId,
   onRequestMapClick,
@@ -64,6 +105,7 @@ export default function RouteBuilder({
   const [saving, setSaving] = useState(false);
   const [isPlacingStop, setIsPlacingStop] = useState(false);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const osrmRequestSeq = useRef(0);
 
   // Ref for editing an existing route
   const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
@@ -93,18 +135,38 @@ export default function RouteBuilder({
     fetchStudents();
   }, [fetchRoutes, fetchStudents]);
 
-  // Whenever stops change, update parent and fetch OSRM route
+  // Whenever stops change, update parent and refresh polyline with debounced, ordered requests.
   useEffect(() => {
     onStopsChange(stops);
 
-    if (stops.length >= 2) {
-      fetchOSRMRoute(stops).then(onPolylineChange);
-    } else if (stops.length === 1) {
-      onPolylineChange([[stops[0].lat, stops[0].lng]]);
-    } else {
-      onPolylineChange([]);
-    }
-  }, [stops]); // eslint-disable-line react-hooks/exhaustive-deps
+    const requestId = ++osrmRequestSeq.current;
+
+    const timeoutId = window.setTimeout(() => {
+      if (stops.length >= 2) {
+        void fetchOSRMRoute(stops)
+          .then((coords) => {
+            if (requestId !== osrmRequestSeq.current) return;
+            onPolylineChange(coords);
+          })
+          .catch(() => {
+            if (requestId !== osrmRequestSeq.current) return;
+            onPolylineChange(stops.map((s) => [s.lat, s.lng]));
+          });
+        return;
+      }
+
+      if (requestId !== osrmRequestSeq.current) return;
+      if (stops.length === 1) {
+        onPolylineChange([[stops[0].lat, stops[0].lng]]);
+      } else {
+        onPolylineChange([]);
+      }
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [stops, onPolylineChange, onStopsChange]);
 
   const startBuilding = () => {
     setIsBuilding(true);
@@ -204,7 +266,7 @@ export default function RouteBuilder({
     setIsBuilding(true);
     setEditingRouteId(route.id);
     setRouteName(route.name);
-    setStops(Array.isArray(route.stops) ? (route.stops as RouteStop[]) : []);
+    setStops(normalizeRouteStops(route.stops));
   };
 
   const handleDeleteRoute = async (routeId: string, name: string) => {
@@ -232,7 +294,7 @@ export default function RouteBuilder({
     const route = routes.find((r) => r.id === routeId);
     if (route) {
       const routeStops = Array.isArray(route.stops)
-        ? (route.stops as RouteStop[])
+        ? normalizeRouteStops(route.stops)
         : [];
       onStopsChange(routeStops);
       // Show OSRM polyline
@@ -251,7 +313,7 @@ export default function RouteBuilder({
   };
 
   const unassignedStudents = students.filter(
-    (s) => !s.route_id && s.lat && s.lng,
+    (s) => !s.route_id && s.lat != null && s.lng != null,
   );
 
   // ─── BUILD MODE ───
@@ -420,7 +482,7 @@ export default function RouteBuilder({
           <div className="flex flex-col gap-2">
             {routes.map((route) => {
               const routeStops = Array.isArray(route.stops)
-                ? (route.stops as RouteStop[])
+                ? normalizeRouteStops(route.stops)
                 : [];
               const assignedCount = students.filter(
                 (s) => s.route_id === route.id,

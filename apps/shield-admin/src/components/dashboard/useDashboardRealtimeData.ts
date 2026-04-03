@@ -116,7 +116,7 @@ export default function useDashboardRealtimeData({
     loadInitialData();
 
     const subscription = supabase
-      .channel("fleet-updates")
+      .channel(`fleet-updates-${tenantId}`)
       .on(
         "postgres_changes",
         {
@@ -143,6 +143,68 @@ export default function useDashboardRealtimeData({
               setBuses((prev) => ({ ...prev, [incoming.bus_id]: incoming }));
             }
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "buses",
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deletedBusId = (payload.old as { id?: string }).id;
+            if (deletedBusId) {
+              setBuses((prev) => {
+                if (!prev[deletedBusId]) return prev;
+                const next = { ...prev };
+                delete next[deletedBusId];
+                return next;
+              });
+
+              setEtaByBus((prev) => {
+                if (!prev[deletedBusId]) return prev;
+                const next = { ...prev };
+                delete next[deletedBusId];
+                return next;
+              });
+
+              setRouteSuggestionsByBus((prev) => {
+                if (!prev[deletedBusId]) return prev;
+                const next = { ...prev };
+                delete next[deletedBusId];
+                return next;
+              });
+            }
+          }
+
+          void fetchFleet();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "students",
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => {
+          void fetchStudents();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "routes",
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        () => {
+          void fetchRoutes();
         },
       )
       .on(
