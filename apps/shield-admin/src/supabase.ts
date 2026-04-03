@@ -88,6 +88,7 @@ export interface Student {
   tenant_id: string; // uuid
   name: string;
   route_id: string | null; // uuid
+  registration_no: string; // human-readable ID shared with parents for login
   created_at: string;
 }
 

@@ -14,13 +14,16 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.19.15",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@shieldtrack/types": "workspace:*",
     "@supabase/supabase-js": "^2.100.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",

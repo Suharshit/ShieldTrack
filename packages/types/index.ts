@@ -35,6 +35,7 @@ export interface Student {
   tenant_id: string; 
   name: string; 
   route_id: string; 
+  registration_no: string;
 }
 export interface TripAssignment { 
   id: string; 
@@ -95,7 +96,7 @@ export interface LoginRequest {
 
 export interface ParentLoginRequest {
   institute_code: string;
-  student_id: string;
+  registration_no: string;
 }
 
 export interface DriverSession {
@@ -112,7 +113,7 @@ export interface ParentSession {
   user_id: string;
   tenant_id: string;
   student_id: string;
-  bus_id: string;
+  bus_id: string | null; // null until Phase 2 resolves active trip
   role: 'parent';
   access_token: string;
   refresh_token?: string;
