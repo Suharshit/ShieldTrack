@@ -235,7 +235,9 @@ export default function RouteBuilder({
 
     // Get the OSRM polyline for storage
     const polylineCoords = await fetchOSRMRoute(stops);
-    const polylineJson = polylineCoords.map(([lat, lng]) => ({ lat, lng }));
+    const polylineJson = polylineCoords.map(
+      ([lat, lng]) => [lat, lng] as [number, number],
+    );
 
     const routeData = {
       tenant_id: tenantId,

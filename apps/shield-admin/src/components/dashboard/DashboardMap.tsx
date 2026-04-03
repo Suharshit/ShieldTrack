@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import {
@@ -33,6 +33,8 @@ interface DashboardMapProps {
   defaultCenter: LatLngExpression;
   defaultZoom: number;
   activeTab: DashboardTabId;
+  followLiveTracking: boolean;
+  followCenter: [number, number] | null;
   mapClickActive: boolean;
   mapFocus: [number, number] | null;
   onMapClick: ((lat: number, lng: number, address: string) => void) | null;
@@ -98,14 +100,32 @@ const placementIcon = renderReactIcon(
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:3001";
 
-function FollowBus({ center }: { center: LatLngExpression | null }) {
+function FleetTrackingController({
+  center,
+  followLiveTracking,
+}: {
+  center: LatLngExpression | null;
+  followLiveTracking: boolean;
+}) {
   const map = useMap();
+  const hasCenteredRef = useRef(false);
 
   useEffect(() => {
-    if (center) {
-      map.flyTo(center, 15, { animate: true, duration: 1.5 });
+    if (!center) return;
+
+    if (followLiveTracking) {
+      // Live tracking mode keeps the selected/active bus in view.
+      map.flyTo(center, 15, { animate: true, duration: 1.0 });
+      hasCenteredRef.current = true;
+      return;
     }
-  }, [center, map]);
+
+    if (hasCenteredRef.current) return;
+
+    // Auto-center once when fleet view opens; avoid re-centering on every GPS update.
+    map.flyTo(center, 15, { animate: true, duration: 1.2 });
+    hasCenteredRef.current = true;
+  }, [center, followLiveTracking, map]);
 
   return null;
 }
@@ -200,6 +220,8 @@ export default function DashboardMap({
   defaultCenter,
   defaultZoom,
   activeTab,
+  followLiveTracking,
+  followCenter,
   mapClickActive,
   mapFocus,
   onMapClick,
@@ -224,8 +246,11 @@ export default function DashboardMap({
       <MapRefocusHandler focus={mapFocus} />
       <MapClickHandler onClick={onMapClick} />
 
-      {activeTab === "fleet" && activeBuses.length > 0 && !mapFocus && (
-        <FollowBus center={[activeBuses[0].lat, activeBuses[0].lng]} />
+      {activeTab === "fleet" && followCenter && (
+        <FleetTrackingController
+          center={followCenter}
+          followLiveTracking={followLiveTracking}
+        />
       )}
 
       {activeBuses.map((busLoc) => {

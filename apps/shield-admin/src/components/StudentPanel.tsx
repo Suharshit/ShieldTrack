@@ -260,7 +260,10 @@ export default function StudentPanel({
       <div className="flex items-center gap-2">
         <select
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => {
+            setFilter(e.target.value);
+            setBulkSelected(new Set());
+          }}
           className="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 text-gray-700 bg-white text-xs focus:outline-none"
         >
           <option value="all">All Students ({students.length})</option>
@@ -274,7 +277,14 @@ export default function StudentPanel({
           ))}
         </select>
         <button
-          onClick={() => setShowBulkAssign(!showBulkAssign)}
+          onClick={() => {
+            setShowBulkAssign((prev) => {
+              if (prev) {
+                setBulkSelected(new Set());
+              }
+              return !prev;
+            });
+          }}
           className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition cursor-pointer ${
             showBulkAssign
               ? "bg-violet-600 text-white border-violet-600"

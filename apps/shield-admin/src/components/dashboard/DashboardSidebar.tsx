@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { RouteStop } from "../../supabase";
 import {
@@ -63,8 +64,57 @@ export default function DashboardSidebar({
   onUpdatePolyline,
   onFocusLocation,
 }: DashboardSidebarProps) {
+  const sidebarRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const root = sidebarRef.current;
+    if (!root) return;
+
+    if (isSidebarCollapsed) {
+      root.setAttribute("inert", "");
+
+      const focusableElements = root.querySelectorAll<HTMLElement>(
+        'a[href], area[href], button, input, select, textarea, [tabindex], [contenteditable="true"], summary',
+      );
+
+      focusableElements.forEach((element) => {
+        if (element === root) return;
+
+        const previousTabIndex = element.getAttribute("tabindex");
+        if (previousTabIndex === null) {
+          element.setAttribute("data-prev-tabindex", "");
+        } else {
+          element.setAttribute("data-prev-tabindex", previousTabIndex);
+        }
+
+        element.setAttribute("tabindex", "-1");
+      });
+
+      return;
+    }
+
+    root.removeAttribute("inert");
+
+    const managedElements = root.querySelectorAll<HTMLElement>(
+      "[data-prev-tabindex]",
+    );
+
+    managedElements.forEach((element) => {
+      const previousTabIndex = element.getAttribute("data-prev-tabindex");
+      if (previousTabIndex === "") {
+        element.removeAttribute("tabindex");
+      } else if (previousTabIndex != null) {
+        element.setAttribute("tabindex", previousTabIndex);
+      }
+      element.removeAttribute("data-prev-tabindex");
+    });
+  }, [isSidebarCollapsed]);
+
   return (
     <div
+      ref={sidebarRef}
+      aria-hidden={isSidebarCollapsed ? "true" : undefined}
+      tabIndex={-1}
       className={`bg-white text-gray-800 shadow-[4px_0_15px_rgba(0,0,0,0.05)] z-20 flex flex-col transition-all duration-300 relative ${
         isSidebarCollapsed
           ? "w-0 min-w-0 overflow-hidden pointer-events-none"

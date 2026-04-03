@@ -45,12 +45,19 @@ export default function DriverPanel({ tenantId }: DriverPanelProps) {
     setSaving(true);
 
     // Check if driver with this email already exists for this tenant
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("users")
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("email", email)
-      .single();
+      .maybeSingle();
+
+    if (existingError) {
+      console.error("Error checking existing driver:", existingError);
+      alert("Error checking existing users. Please try again.");
+      setSaving(false);
+      return;
+    }
 
     if (existing) {
       alert("A user with this email already exists.");
@@ -102,7 +109,13 @@ export default function DriverPanel({ tenantId }: DriverPanelProps) {
             disabled={saving}
             className="px-4 py-2 bg-emerald-600 text-white font-semibold border-none rounded-lg cursor-pointer hover:bg-emerald-700 transition text-sm disabled:opacity-50 shrink-0 flex items-center justify-center gap-2"
           >
-            {saving ? "..." : <><PiPlusBold size={16} /> Add</>}
+            {saving ? (
+              "..."
+            ) : (
+              <>
+                <PiPlusBold size={16} /> Add
+              </>
+            )}
           </button>
         </form>
       </div>
@@ -113,7 +126,9 @@ export default function DriverPanel({ tenantId }: DriverPanelProps) {
           Drivers ({drivers.length})
         </h3>
         {drivers.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">No drivers registered yet.</p>
+          <p className="text-sm text-gray-400 italic">
+            No drivers registered yet.
+          </p>
         ) : (
           <div className="flex flex-col gap-2">
             {drivers.map((driver) => (

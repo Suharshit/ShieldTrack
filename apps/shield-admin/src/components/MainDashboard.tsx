@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PiCaretRightBold } from "react-icons/pi";
 
 import { supabase } from "../supabase";
@@ -38,11 +38,14 @@ export default function MainDashboard({
   const [activeTab, setActiveTab] = useState<DashboardTabId>("routes");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [mapFocus, setMapFocus] = useState<[number, number] | null>(null);
+  const [followLiveTracking, setFollowLiveTracking] = useState(false);
 
   const [selectedInsightBusId, setSelectedInsightBusId] = useState("");
   const [approvedReroutes, setApprovedReroutes] = useState<ApprovedReroute[]>(
     [],
   );
+  const [approvedReroutesTenantReady, setApprovedReroutesTenantReady] =
+    useState<string | null>(null);
 
   const [auditOptions, setAuditOptions] = useState<RouteOption[]>([]);
   const [selectedAuditRouteId, setSelectedAuditRouteId] = useState("");
@@ -77,17 +80,26 @@ export default function MainDashboard({
   } = useDashboardRealtimeData({ tenantId });
 
   const mapClickActive = mapClickHandler !== null;
+  const approvedReroutesStorageKey = `${APPROVED_REROUTES_STORAGE_KEY}:${tenantId}`;
 
   useEffect(() => {
-    setApprovedReroutes(loadApprovedReroutes());
-  }, []);
+    setApprovedReroutes(loadApprovedReroutes(approvedReroutesStorageKey));
+    setApprovedReroutesTenantReady(tenantId);
+  }, [approvedReroutesStorageKey, tenantId]);
 
   useEffect(() => {
+    if (approvedReroutesTenantReady !== tenantId) return;
+
     localStorage.setItem(
-      APPROVED_REROUTES_STORAGE_KEY,
+      approvedReroutesStorageKey,
       JSON.stringify(approvedReroutes.slice(0, 30)),
     );
-  }, [approvedReroutes]);
+  }, [
+    approvedReroutes,
+    approvedReroutesStorageKey,
+    approvedReroutesTenantReady,
+    tenantId,
+  ]);
 
   useEffect(() => {
     if (activeTab === "students" || activeTab === "routes") {
@@ -139,7 +151,15 @@ export default function MainDashboard({
   }, [activeBusIdsKey, selectedInsightBusId]);
 
   const selectedBusId = selectedInsightBusId;
+  const selectedBusIdRef = useRef("");
+  const auditRequestSeqRef = useRef(0);
+
+  useEffect(() => {
+    selectedBusIdRef.current = selectedBusId;
+  }, [selectedBusId]);
+
   const selectedBusDetails = fleetList.find((bus) => bus.id === selectedBusId);
+  const selectedBusLocation = selectedBusId ? buses[selectedBusId] : undefined;
   const selectedEta = selectedBusId ? etaByBus[selectedBusId] : undefined;
   const selectedRecommendation = selectedBusId
     ? routeSuggestionsByBus[selectedBusId]
@@ -222,8 +242,11 @@ export default function MainDashboard({
   const runRouteAudit = async () => {
     if (!selectedBusId) return;
 
-    const liveBus = buses[selectedBusId];
-    const bus = fleetList.find((item) => item.id === selectedBusId);
+    const requestBusId = selectedBusId;
+    const requestSeq = ++auditRequestSeqRef.current;
+
+    const liveBus = buses[requestBusId];
+    const bus = fleetList.find((item) => item.id === requestBusId);
     const defaultRoute = routesCatalog.find(
       (route) => route.id === bus?.default_route_id,
     );
@@ -251,7 +274,7 @@ export default function MainDashboard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          bus_id: selectedBusId,
+          bus_id: requestBusId,
           origin_lat: liveBus.lat,
           origin_lng: liveBus.lng,
           dest_lat: destination.lat,
@@ -278,28 +301,37 @@ export default function MainDashboard({
         throw new Error("No route options returned by the optimizer.");
       }
 
+      setRouteSuggestionsByBus((prev) => ({
+        ...prev,
+        [requestBusId]: {
+          id: `local-${Date.now()}`,
+          bus_id: requestBusId,
+          recommended_at: payload.recommended_at ?? new Date().toISOString(),
+          routes_json: options,
+        },
+      }));
+
+      if (selectedBusIdRef.current !== requestBusId) {
+        return;
+      }
+
       setAuditOptions(options);
       setSelectedAuditRouteId(
         options.find((option) => option.is_recommended)?.route_id ||
           options[0].route_id,
       );
       setAuditUpdatedAt(payload.recommended_at ?? new Date().toISOString());
-
-      setRouteSuggestionsByBus((prev) => ({
-        ...prev,
-        [selectedBusId]: {
-          id: `local-${Date.now()}`,
-          bus_id: selectedBusId,
-          recommended_at: payload.recommended_at ?? new Date().toISOString(),
-          routes_json: options,
-        },
-      }));
     } catch (error) {
+      if (selectedBusIdRef.current !== requestBusId) {
+        return;
+      }
       setAuditError(
         error instanceof Error ? error.message : "Unable to run route audit.",
       );
     } finally {
-      setAuditLoading(false);
+      if (requestSeq === auditRequestSeqRef.current) {
+        setAuditLoading(false);
+      }
     }
   };
 
@@ -359,6 +391,18 @@ export default function MainDashboard({
     });
   };
 
+  useEffect(() => {
+    if (activeTab === "fleet" && followLiveTracking && mapFocus) {
+      setMapFocus(null);
+    }
+  }, [activeTab, followLiveTracking, mapFocus]);
+
+  const followCenter: [number, number] | null = selectedBusLocation
+    ? [selectedBusLocation.lat, selectedBusLocation.lng]
+    : activeBuses.length > 0
+      ? [activeBuses[0].lat, activeBuses[0].lng]
+      : null;
+
   const saved = getSavedMapView();
   const defaultCenter: [number, number] = saved
     ? [saved.lat, saved.lng]
@@ -408,6 +452,8 @@ export default function MainDashboard({
           defaultCenter={defaultCenter}
           defaultZoom={defaultZoom}
           activeTab={activeTab}
+          followLiveTracking={followLiveTracking}
+          followCenter={followCenter}
           mapClickActive={mapClickActive}
           mapFocus={mapFocus}
           onMapClick={mapClickHandler}
@@ -420,6 +466,21 @@ export default function MainDashboard({
           builderPolyline={builderPolyline}
           placementPreview={placementPreview}
         />
+
+        {activeTab === "fleet" && (
+          <button
+            type="button"
+            onClick={() => setFollowLiveTracking((prev) => !prev)}
+            className={`absolute top-4 left-4 z-1000 px-3 py-2 rounded-xl border text-xs font-bold shadow-md transition border-none cursor-pointer ${
+              followLiveTracking
+                ? "bg-emerald-600 text-white"
+                : "bg-white text-gray-700"
+            }`}
+            title="Toggle live bus follow mode"
+          >
+            Live Follow: {followLiveTracking ? "ON" : "OFF"}
+          </button>
+        )}
 
         {activeTab === "fleet" && (
           <LiveInsightsPanel

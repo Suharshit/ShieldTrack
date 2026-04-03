@@ -10,6 +10,20 @@ export interface SavedMapView {
   zoom: number;
 }
 
+function isSavedMapView(value: unknown): value is SavedMapView {
+  if (typeof value !== "object" || value == null) return false;
+
+  const candidate = value as Partial<SavedMapView>;
+  return (
+    typeof candidate.lat === "number" &&
+    Number.isFinite(candidate.lat) &&
+    typeof candidate.lng === "number" &&
+    Number.isFinite(candidate.lng) &&
+    typeof candidate.zoom === "number" &&
+    Number.isFinite(candidate.zoom)
+  );
+}
+
 export interface ConfidenceMeta {
   label: string;
   badgeClass: string;
@@ -18,7 +32,10 @@ export interface ConfidenceMeta {
 export function getSavedMapView(): SavedMapView | null {
   try {
     const raw = localStorage.getItem(MAP_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (!raw) return null;
+
+    const parsed: unknown = JSON.parse(raw);
+    return isSavedMapView(parsed) ? parsed : null;
   } catch {
     // noop
   }
@@ -65,9 +82,11 @@ export function formatTime(value: string | null | undefined): string {
   return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export function loadApprovedReroutes(): ApprovedReroute[] {
+export function loadApprovedReroutes(
+  storageKey: string = APPROVED_REROUTES_STORAGE_KEY,
+): ApprovedReroute[] {
   try {
-    const raw = localStorage.getItem(APPROVED_REROUTES_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as ApprovedReroute[]) : [];

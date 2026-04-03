@@ -8,11 +8,22 @@ import type {
   BusRouteRecommendation,
   Route,
   Student,
+  Trip,
 } from "../../supabase";
 import { isNewerRecord } from "./dashboard-utils";
 
 interface UseDashboardRealtimeDataArgs {
   tenantId: string;
+}
+
+function isTerminalTripStatus(status: unknown): boolean {
+  if (typeof status !== "string") return false;
+  const normalized = status.trim().toLowerCase();
+  return (
+    normalized === "completed" ||
+    normalized === "ended" ||
+    normalized === "finished"
+  );
 }
 
 export default function useDashboardRealtimeData({
@@ -61,33 +72,47 @@ export default function useDashboardRealtimeData({
       return;
     }
 
-    const [etaRes, recRes] = await Promise.all([
-      supabase
-        .from("bus_eta_predictions")
-        .select("*")
-        .in("bus_id", busIds)
-        .order("predicted_at", { ascending: false })
-        .limit(500),
-      supabase
-        .from("bus_route_recommendations")
-        .select("*")
-        .in("bus_id", busIds)
-        .order("recommended_at", { ascending: false })
-        .limit(500),
+    const [etaResponses, recResponses] = await Promise.all([
+      Promise.all(
+        busIds.map((busId) =>
+          supabase
+            .from("bus_eta_predictions")
+            .select("*")
+            .eq("bus_id", busId)
+            .order("predicted_at", { ascending: false })
+            .limit(1),
+        ),
+      ),
+      Promise.all(
+        busIds.map((busId) =>
+          supabase
+            .from("bus_route_recommendations")
+            .select("*")
+            .eq("bus_id", busId)
+            .order("recommended_at", { ascending: false })
+            .limit(1),
+        ),
+      ),
     ]);
 
-    if (etaRes.data) {
+    if (etaResponses.length > 0) {
       const next: Record<string, BusEtaPrediction> = {};
-      etaRes.data.forEach((row) => {
-        if (!next[row.bus_id]) next[row.bus_id] = row;
+      etaResponses.forEach((response) => {
+        const row = response.data?.[0];
+        if (row && !next[row.bus_id]) {
+          next[row.bus_id] = row;
+        }
       });
       setEtaByBus(next);
     }
 
-    if (recRes.data) {
+    if (recResponses.length > 0) {
       const next: Record<string, BusRouteRecommendation> = {};
-      recRes.data.forEach((row) => {
-        if (!next[row.bus_id]) next[row.bus_id] = row;
+      recResponses.forEach((response) => {
+        const row = response.data?.[0];
+        if (row && !next[row.bus_id]) {
+          next[row.bus_id] = row;
+        }
       });
       setRouteSuggestionsByBus(next);
     }
@@ -143,6 +168,54 @@ export default function useDashboardRealtimeData({
               setBuses((prev) => ({ ...prev, [incoming.bus_id]: incoming }));
             }
           }
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "trips",
+          filter: `tenant_id=eq.${tenantId}`,
+        },
+        (payload) => {
+          if (
+            payload.eventType !== "INSERT" &&
+            payload.eventType !== "UPDATE"
+          ) {
+            return;
+          }
+
+          const incomingTrip = payload.new as Trip;
+          if (
+            !incomingTrip?.bus_id ||
+            !isTerminalTripStatus(incomingTrip.status)
+          ) {
+            return;
+          }
+
+          const busId = incomingTrip.bus_id;
+
+          setBuses((prev) => {
+            if (!prev[busId]) return prev;
+            const next = { ...prev };
+            delete next[busId];
+            return next;
+          });
+
+          setEtaByBus((prev) => {
+            if (!prev[busId]) return prev;
+            const next = { ...prev };
+            delete next[busId];
+            return next;
+          });
+
+          setRouteSuggestionsByBus((prev) => {
+            if (!prev[busId]) return prev;
+            const next = { ...prev };
+            delete next[busId];
+            return next;
+          });
         },
       )
       .on(

@@ -61,15 +61,23 @@ export default function FleetPanel({
 
   const handleFocusBus = async (busId: string) => {
     if (!onFocusLocation) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("latest_bus_locations")
       .select("lat, lng")
       .eq("bus_id", busId)
-      .single();
+      .maybeSingle();
 
-    if (data) {
-      onFocusLocation(data.lat, data.lng);
+    if (error) {
+      console.error("Failed to fetch latest bus location:", error);
+      return;
     }
+
+    if (data?.lat == null || data?.lng == null) {
+      console.info(`No latest location found for bus ${busId}.`);
+      return;
+    }
+
+    onFocusLocation(data.lat, data.lng);
   };
 
   useEffect(() => {
