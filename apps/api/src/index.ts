@@ -16,14 +16,40 @@ interface ReverseGeocodeCacheEntry {
   expiresAt: number;
 }
 
+interface RateLimitBucket {
+  requests: number[];
+  lastSeen: number;
+}
+
 const reverseGeocodeCache = new Map<string, ReverseGeocodeCacheEntry>();
-const reverseGeocodeRequestsByIp = new Map<string, number[]>();
+const reverseGeocodeRequestsByIp = new Map<string, RateLimitBucket>();
+
+function isMissingOptionalRouterError(
+  err: unknown,
+  modulePath: string,
+): boolean {
+  if (!(err instanceof Error)) return false;
+
+  const errorCode = (err as NodeJS.ErrnoException).code;
+  if (errorCode !== "MODULE_NOT_FOUND") return false;
+
+  return (
+    err.message.includes(`'${modulePath}'`) ||
+    err.message.includes(`"${modulePath}"`) ||
+    err.message.includes(modulePath)
+  );
+}
 
 function loadOptionalRouter(modulePath: string): Router {
   try {
     const loaded = require(modulePath);
     return (loaded.default || loaded) as Router;
-  } catch {
+  } catch (err) {
+    if (!isMissingOptionalRouterError(err, modulePath)) {
+      console.error(`Failed to load optional router ${modulePath}:`, err);
+      throw err;
+    }
+
     const router = express.Router();
     router.use((_req, res) => {
       res.status(501).json({ error: `${modulePath} is not configured.` });
@@ -49,33 +75,37 @@ function parseCoordinate(value: unknown): number | null {
 }
 
 function getRateLimitKey(req: Request): string {
-  const forwardedFor = req.headers["x-forwarded-for"];
-  if (typeof forwardedFor === "string" && forwardedFor.length > 0) {
-    const first = forwardedFor.split(",")[0]?.trim();
-    if (first) return first;
-  }
-
-  if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
-    const first = forwardedFor[0]?.split(",")[0]?.trim();
-    if (first) return first;
-  }
-
   return req.ip || "unknown";
 }
 
 function isRateLimited(ipKey: string, now: number): boolean {
-  const recentRequests = reverseGeocodeRequestsByIp.get(ipKey) ?? [];
+  const existingBucket = reverseGeocodeRequestsByIp.get(ipKey);
+  const recentRequests = existingBucket?.requests ?? [];
   const windowStart = now - GEO_RATE_WINDOW_MS;
   const inWindow = recentRequests.filter((ts) => ts >= windowStart);
 
+  const nextBucket: RateLimitBucket = {
+    requests: inWindow,
+    lastSeen: now,
+  };
+
   if (inWindow.length >= GEO_RATE_LIMIT_PER_IP) {
-    reverseGeocodeRequestsByIp.set(ipKey, inWindow);
+    reverseGeocodeRequestsByIp.set(ipKey, nextBucket);
     return true;
   }
 
-  inWindow.push(now);
-  reverseGeocodeRequestsByIp.set(ipKey, inWindow);
+  nextBucket.requests.push(now);
+  reverseGeocodeRequestsByIp.set(ipKey, nextBucket);
   return false;
+}
+
+function pruneRateLimitBuckets(now: number): void {
+  const staleBefore = now - GEO_RATE_WINDOW_MS;
+  for (const [ipKey, bucket] of reverseGeocodeRequestsByIp.entries()) {
+    if (bucket.lastSeen < staleBefore) {
+      reverseGeocodeRequestsByIp.delete(ipKey);
+    }
+  }
 }
 
 function toCacheKey(lat: number, lng: number): string {
@@ -89,6 +119,16 @@ function pruneExpiredCache(now: number): void {
 }
 
 const app = express();
+app.set("trust proxy", 1);
+
+const rateLimitPruneInterval = setInterval(() => {
+  pruneRateLimitBuckets(Date.now());
+}, GEO_RATE_WINDOW_MS);
+
+if (typeof rateLimitPruneInterval.unref === "function") {
+  rateLimitPruneInterval.unref();
+}
+
 app.use(cors());
 app.use(express.json());
 app.use("/auth", authRouter);
@@ -117,11 +157,9 @@ app.get("/geocode/reverse", async (req: Request, res: Response) => {
 
   const clientKey = getRateLimitKey(req);
   if (isRateLimited(clientKey, now)) {
-    res
-      .status(429)
-      .json({
-        error: "Too many reverse geocoding requests. Please retry shortly.",
-      });
+    res.status(429).json({
+      error: "Too many reverse geocoding requests. Please retry shortly.",
+    });
     return;
   }
 
@@ -137,19 +175,26 @@ app.get("/geocode/reverse", async (req: Request, res: Response) => {
     `&lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}`;
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": NOMINATIM_USER_AGENT,
-        Accept: "application/json",
-      },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    let response: globalThis.Response;
+    try {
+      response = await fetch(url, {
+        headers: {
+          "User-Agent": NOMINATIM_USER_AGENT,
+          Accept: "application/json",
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
-      res
-        .status(502)
-        .json({
-          error: `Reverse geocode upstream failed (${response.status}).`,
-        });
+      res.status(502).json({
+        error: `Reverse geocode upstream failed (${response.status}).`,
+      });
       return;
     }
 
