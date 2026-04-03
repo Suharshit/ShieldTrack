@@ -91,7 +91,6 @@ CREATE TABLE public.students (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   tenant_id uuid NOT NULL,
   name text NOT NULL,
-  registration_no text NOT NULL DEFAULT '',
   route_id uuid,
   created_at timestamp with time zone DEFAULT now(),
   address text,
