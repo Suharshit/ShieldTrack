@@ -301,6 +301,10 @@ export default function MainDashboard({
         throw new Error("No route options returned by the optimizer.");
       }
 
+      if (auditRequestSeqRef.current !== requestSeq) {
+        return;
+      }
+
       setRouteSuggestionsByBus((prev) => ({
         ...prev,
         [requestBusId]: {
@@ -322,6 +326,10 @@ export default function MainDashboard({
       );
       setAuditUpdatedAt(payload.recommended_at ?? new Date().toISOString());
     } catch (error) {
+      if (auditRequestSeqRef.current !== requestSeq) {
+        return;
+      }
+
       if (selectedBusIdRef.current !== requestBusId) {
         return;
       }

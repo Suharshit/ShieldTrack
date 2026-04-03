@@ -280,38 +280,58 @@ export default function RouteBuilder({
       return;
 
     // Unassign students first
-    await supabase
+    const { error: unassignError } = await supabase
       .from("students")
       .update({ route_id: null })
       .eq("route_id", routeId);
 
+    if (unassignError) {
+      alert("Error unassigning students: " + unassignError.message);
+      return;
+    }
+
     const { error } = await supabase.from("routes").delete().eq("id", routeId);
     if (error) alert("Error: " + error.message);
-    else fetchRoutes();
+    else {
+      fetchRoutes();
+      fetchStudents();
+    }
   };
 
   const handleViewRoute = (routeId: string) => {
-    setSelectedRouteId(routeId === selectedRouteId ? null : routeId);
-    // Show route on map
-    const route = routes.find((r) => r.id === routeId);
-    if (route) {
-      const routeStops = Array.isArray(route.stops)
-        ? normalizeRouteStops(route.stops)
-        : [];
-      onStopsChange(routeStops);
-      // Show OSRM polyline
-      if (Array.isArray(route.polyline) && route.polyline.length >= 2) {
-        const coords = (
-          route.polyline as Array<
-            { lat: number; lng: number } | [number, number]
-          >
-        ).map((p): [number, number] => {
-          if (Array.isArray(p)) return [p[0], p[1]];
-          return [p.lat, p.lng];
-        });
-        onPolylineChange(coords);
-      }
+    const newSelectedId = routeId === selectedRouteId ? null : routeId;
+    setSelectedRouteId(newSelectedId);
+
+    if (newSelectedId === null) {
+      onStopsChange([]);
+      onPolylineChange([]);
+      return;
     }
+
+    const route = routes.find((r) => r.id === newSelectedId);
+    if (!route) {
+      onStopsChange([]);
+      onPolylineChange([]);
+      return;
+    }
+
+    const routeStops = Array.isArray(route.stops)
+      ? normalizeRouteStops(route.stops)
+      : [];
+    onStopsChange(routeStops);
+
+    if (!(Array.isArray(route.polyline) && route.polyline.length >= 2)) {
+      onPolylineChange([]);
+      return;
+    }
+
+    const coords = (
+      route.polyline as Array<{ lat: number; lng: number } | [number, number]>
+    ).map((p): [number, number] => {
+      if (Array.isArray(p)) return [p[0], p[1]];
+      return [p.lat, p.lng];
+    });
+    onPolylineChange(coords);
   };
 
   const unassignedStudents = students.filter(
