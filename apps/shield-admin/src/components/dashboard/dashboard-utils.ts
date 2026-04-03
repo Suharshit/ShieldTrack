@@ -29,6 +29,27 @@ export interface ConfidenceMeta {
   badgeClass: string;
 }
 
+function isApprovedReroute(value: unknown): value is ApprovedReroute {
+  if (typeof value !== "object" || value == null) return false;
+
+  const candidate = value as Partial<ApprovedReroute>;
+  return (
+    typeof candidate.id === "string" &&
+    candidate.id.length > 0 &&
+    typeof candidate.busId === "string" &&
+    candidate.busId.length > 0 &&
+    typeof candidate.busLabel === "string" &&
+    candidate.busLabel.length > 0 &&
+    typeof candidate.routeId === "string" &&
+    candidate.routeId.length > 0 &&
+    typeof candidate.estimatedMinutes === "number" &&
+    Number.isFinite(candidate.estimatedMinutes) &&
+    typeof candidate.approvedAt === "string" &&
+    candidate.approvedAt.length > 0 &&
+    (candidate.note === undefined || typeof candidate.note === "string")
+  );
+}
+
 export function getSavedMapView(): SavedMapView | null {
   try {
     const raw = localStorage.getItem(MAP_STORAGE_KEY);
@@ -88,8 +109,10 @@ export function loadApprovedReroutes(
   try {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as ApprovedReroute[]) : [];
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? (parsed.filter(isApprovedReroute) as ApprovedReroute[])
+      : [];
   } catch {
     return [];
   }

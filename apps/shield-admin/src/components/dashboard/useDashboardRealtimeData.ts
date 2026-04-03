@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { supabase } from "../../supabase";
 import type {
@@ -29,6 +29,11 @@ function isTerminalTripStatus(status: unknown): boolean {
 export default function useDashboardRealtimeData({
   tenantId,
 }: UseDashboardRealtimeDataArgs) {
+  const tenantIdRef = useRef(tenantId);
+  tenantIdRef.current = tenantId;
+
+  const latestInsightsRequestSeqRef = useRef(0);
+
   const [buses, setBuses] = useState<Record<string, BusLocation>>({});
   const [fleetList, setFleetList] = useState<Bus[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -40,32 +45,57 @@ export default function useDashboardRealtimeData({
     Record<string, BusRouteRecommendation>
   >({});
 
+  useEffect(() => {
+    // Clear previous tenant snapshots immediately to avoid cross-tenant stale UI.
+    setBuses({});
+    setFleetList([]);
+    setAllStudents([]);
+    setRoutesCatalog([]);
+    setEtaByBus({});
+    setRouteSuggestionsByBus({});
+
+    // Invalidate any in-flight latest insights request from previous tenant.
+    latestInsightsRequestSeqRef.current += 1;
+  }, [tenantId]);
+
   const fetchFleet = useCallback(async () => {
+    const requestTenantId = tenantId;
     const { data } = await supabase
       .from("buses")
       .select("*")
       .eq("tenant_id", tenantId);
+
+    if (tenantIdRef.current !== requestTenantId) return;
     if (data) setFleetList(data);
   }, [tenantId]);
 
   const fetchStudents = useCallback(async () => {
+    const requestTenantId = tenantId;
     const { data } = await supabase
       .from("students")
       .select("*")
       .eq("tenant_id", tenantId);
+
+    if (tenantIdRef.current !== requestTenantId) return;
     if (data) setAllStudents(data);
   }, [tenantId]);
 
   const fetchRoutes = useCallback(async () => {
+    const requestTenantId = tenantId;
     const { data } = await supabase
       .from("routes")
       .select("*")
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false });
+
+    if (tenantIdRef.current !== requestTenantId) return;
     if (data) setRoutesCatalog(data);
   }, [tenantId]);
 
   const fetchLatestInsights = useCallback(async (busIds: string[]) => {
+    const requestTenantId = tenantIdRef.current;
+    const requestSeq = ++latestInsightsRequestSeqRef.current;
+
     if (busIds.length === 0) {
       setEtaByBus({});
       setRouteSuggestionsByBus({});
@@ -94,6 +124,13 @@ export default function useDashboardRealtimeData({
         ),
       ),
     ]);
+
+    if (
+      tenantIdRef.current !== requestTenantId ||
+      requestSeq !== latestInsightsRequestSeqRef.current
+    ) {
+      return;
+    }
 
     if (etaResponses.length > 0) {
       const next: Record<string, BusEtaPrediction> = {};
@@ -124,10 +161,13 @@ export default function useDashboardRealtimeData({
     fetchRoutes();
 
     const loadInitialData = async () => {
+      const requestTenantId = tenantId;
       const { data } = await supabase
         .from("latest_bus_locations")
         .select("*")
         .eq("tenant_id", tenantId);
+
+      if (tenantIdRef.current !== requestTenantId) return;
 
       if (data) {
         const initialMap: Record<string, BusLocation> = {};
