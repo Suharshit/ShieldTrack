@@ -62,11 +62,11 @@ export default function useDashboardRealtimeData({
     const requestTenantId = tenantId;
     const { data } = await supabase
       .from("buses")
-      .select("*")
+      .select("*, driver:users (*)")
       .eq("tenant_id", tenantId);
 
     if (tenantIdRef.current !== requestTenantId) return;
-    if (data) setFleetList(data);
+    if (data) setFleetList(data as any);
   }, [tenantId]);
 
   const fetchStudents = useCallback(async () => {

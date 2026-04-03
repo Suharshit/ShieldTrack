@@ -465,6 +465,7 @@ export default function MainDashboard({
           mapClickActive={mapClickActive}
           mapFocus={mapFocus}
           onMapClick={mapClickHandler}
+          onMapDrag={() => setFollowLiveTracking(false)}
           activeBuses={activeBuses}
           fleetList={fleetList}
           etaByBus={etaByBus}
@@ -479,14 +480,21 @@ export default function MainDashboard({
           <button
             type="button"
             onClick={() => setFollowLiveTracking((prev) => !prev)}
-            className={`absolute top-4 left-4 z-1000 px-3 py-2 rounded-xl border text-xs font-bold shadow-md transition border-none cursor-pointer ${
+            className={`absolute bottom-6 right-6 z-1000 px-4 py-3 rounded-full border-none shadow-xl transition-all cursor-pointer flex items-center gap-2 font-semibold text-sm ${
               followLiveTracking
-                ? "bg-emerald-600 text-white"
-                : "bg-white text-gray-700"
+                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/30"
+                : "bg-white text-gray-700 hover:bg-gray-50"
             }`}
             title="Toggle live bus follow mode"
           >
-            Live Follow: {followLiveTracking ? "ON" : "OFF"}
+            <div
+              className={`w-2.5 h-2.5 rounded-full ${
+                followLiveTracking
+                  ? "bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"
+                  : "bg-gray-400"
+              }`}
+            />
+            {followLiveTracking ? "Live Tracking" : "Live Track"}
           </button>
         )}
 

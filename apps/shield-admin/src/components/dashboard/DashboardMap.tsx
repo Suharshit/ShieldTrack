@@ -38,6 +38,7 @@ interface DashboardMapProps {
   mapClickActive: boolean;
   mapFocus: [number, number] | null;
   onMapClick: ((lat: number, lng: number, address: string) => void) | null;
+  onMapDrag?: () => void;
   activeBuses: BusLocation[];
   fleetList: Bus[];
   etaByBus: Record<string, BusEtaPrediction>;
@@ -54,10 +55,13 @@ function renderReactIcon(
   size: [number, number],
   anchor: [number, number],
 ) {
+  const baseClass = className.split(" ")[0]; // Extract base class for inner div
   return L.divIcon({
     className,
     html: renderToString(
-      <div className={`${className}-inner`}>{component}</div>,
+      <div className={`${baseClass}-inner flex items-center justify-center`}>
+        {component}
+      </div>,
     ),
     iconSize: size,
     iconAnchor: anchor,
@@ -67,10 +71,14 @@ function renderReactIcon(
 
 function getBusIcon(isMoving: boolean) {
   return renderReactIcon(
-    <PiBusBold size={32} color="white" />,
-    `bus-marker ${isMoving ? "bus-moving" : "bus-idle"}`,
-    [48, 48],
-    [24, 24],
+    <PiBusBold
+      size={28}
+      color="white"
+      style={{ filter: "drop-shadow(0px 2px 2px rgba(0,0,0,0.3))" }}
+    />,
+    `bus-marker ${isMoving ? "bus-moving" : "bus-idle"} cursor-pointer`,
+    [48, 54], // increased height for pointer tail
+    [24, 54], // anchor at bottom point
   );
 }
 
@@ -114,16 +122,17 @@ function FleetTrackingController({
     if (!center) return;
 
     if (followLiveTracking) {
-      // Live tracking mode keeps the selected/active bus in view.
-      map.flyTo(center, 15, { animate: true, duration: 1.0 });
+      // Live tracking mode gently pans to the active bus
+      const zoom = map.getZoom() > 14 ? map.getZoom() : 15;
+      map.setView(center, zoom, { animate: true, duration: 0.8 });
       hasCenteredRef.current = true;
       return;
     }
 
     if (hasCenteredRef.current) return;
 
-    // Auto-center once when fleet view opens; avoid re-centering on every GPS update.
-    map.flyTo(center, 15, { animate: true, duration: 1.2 });
+    // Auto-center once when fleet view opens
+    map.setView(center, 15, { animate: true, duration: 0.8 });
     hasCenteredRef.current = true;
   }, [center, followLiveTracking, map]);
 
@@ -135,7 +144,7 @@ function MapRefocusHandler({ focus }: { focus: [number, number] | null }) {
 
   useEffect(() => {
     if (focus) {
-      map.flyTo(focus, 16, { animate: true, duration: 1.5 });
+      map.setView(focus, 16, { animate: true, duration: 0.8 });
     }
   }, [focus, map]);
 
@@ -144,10 +153,15 @@ function MapRefocusHandler({ focus }: { focus: [number, number] | null }) {
 
 function MapClickHandler({
   onClick,
+  onDrag,
 }: {
   onClick: ((lat: number, lng: number, address: string) => void) | null;
+  onDrag?: () => void;
 }) {
   useMapEvents({
+    dragstart: () => {
+      onDrag?.();
+    },
     click: async (event) => {
       if (!onClick) return;
       const { lat, lng } = event.latlng;
@@ -183,9 +197,9 @@ function MapPersistence() {
     } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          map.flyTo([pos.coords.latitude, pos.coords.longitude], 14, {
+          map.setView([pos.coords.latitude, pos.coords.longitude], 14, {
             animate: true,
-            duration: 1.5,
+            duration: 0.8,
           });
         },
         () => {
@@ -225,6 +239,7 @@ export default function DashboardMap({
   mapClickActive,
   mapFocus,
   onMapClick,
+  onMapDrag,
   activeBuses,
   fleetList,
   etaByBus,
@@ -244,7 +259,7 @@ export default function DashboardMap({
 
       <MapPersistence />
       <MapRefocusHandler focus={mapFocus} />
-      <MapClickHandler onClick={onMapClick} />
+      <MapClickHandler onClick={onMapClick} onDrag={onMapDrag} />
 
       {activeTab === "fleet" && followCenter && (
         <FleetTrackingController
@@ -266,36 +281,76 @@ export default function DashboardMap({
             key={`bus-${busLoc.bus_id}`}
             position={[busLoc.lat, busLoc.lng]}
             icon={getBusIcon(busLoc.speed_kmh > 0)}
+            draggable={false}
+            interactive={true}
           >
-            <Popup>
-              <b>{title}</b>
-              <br />
-              Speed: {busLoc.speed_kmh} km/h
-              <br />
-              Arrival estimate:{" "}
-              {etaMinutes != null
-                ? `${Math.round(etaMinutes)} min`
-                : "Waiting for update"}
-              <br />
-              <span
-                style={{
-                  color:
-                    confidencePct == null
-                      ? "#4b5563"
-                      : confidencePct >= 80
-                        ? "#047857"
-                        : confidencePct >= 60
-                          ? "#b45309"
-                          : "#b91c1c",
-                }}
-              >
-                Confidence: {confidence.label}
-                {confidencePct != null
-                  ? ` (${Math.round(confidencePct)}%)`
-                  : ""}
-              </span>
-              <br />
-              Last ping: {formatTime(busLoc.recorded_at)}
+            <Popup className="bus-popup custom-popup" autoPan={false}>
+              <div className="w-48 flex flex-col font-sans">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div
+                    className={`w-2 h-2 rounded-full ${busLoc.speed_kmh > 0 ? "bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "bg-red-500"}`}
+                  ></div>
+                  <span className="text-sm font-extrabold text-gray-900 m-0 tracking-tight">
+                    {title}
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1.5 text-[11px]">
+                  <div className="flex justify-between items-center bg-gray-50/50 px-1 py-0.5 rounded">
+                    <span className="text-gray-400 font-medium">Driver</span>
+                    <span className="font-bold text-gray-700 truncate max-w-25 text-right">
+                      {/* @ts-ignore: joined dynamic property */}
+                      {busDetails?.driver?.name || "Unassigned"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-gray-50/50 px-1 py-0.5 rounded">
+                    <span className="text-gray-400 font-medium">Speed</span>
+                    <span className="font-bold text-gray-700">
+                      {Math.round(busLoc.speed_kmh)} km/h
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-gray-50/50 px-1 py-0.5 rounded">
+                    <span className="text-gray-400 font-medium">ETA</span>
+                    <span className="font-bold text-sky-600">
+                      {etaMinutes != null
+                        ? `${Math.round(etaMinutes)} min`
+                        : "--"}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-gray-50/50 px-1 py-0.5 rounded">
+                    <span className="text-gray-400 font-medium">
+                      Confidence
+                    </span>
+                    <span
+                      className="font-bold"
+                      style={{
+                        color:
+                          confidencePct == null
+                            ? "#9ca3af"
+                            : confidencePct >= 80
+                              ? "#10b981" // emerald-500
+                              : confidencePct >= 60
+                                ? "#f59e0b" // amber-500
+                                : "#ef4444", // red-500
+                      }}
+                    >
+                      {confidencePct != null
+                        ? `${confidence.label} (${Math.round(confidencePct)}%)`
+                        : confidence.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-1 pt-2 border-t border-gray-100 flex justify-between items-center text-[9px]">
+                    <span className="text-gray-400">Updated</span>
+                    <span className="text-gray-500 font-bold tracking-wide">
+                      {formatTime(busLoc.recorded_at)}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </Popup>
           </Marker>
         );
