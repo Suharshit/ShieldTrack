@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { PiCaretRightBold } from "react-icons/pi";
 
 import { supabase } from "../supabase";
@@ -165,11 +165,11 @@ export default function MainDashboard({
     ? routeSuggestionsByBus[selectedBusId]
     : undefined;
 
-  const selectedRouteOptions = Array.isArray(
-    selectedRecommendation?.routes_json,
-  )
-    ? (selectedRecommendation.routes_json as RouteOption[])
-    : [];
+  const selectedRouteOptions = useMemo(() => {
+    return Array.isArray(selectedRecommendation?.routes_json)
+      ? (selectedRecommendation.routes_json as RouteOption[])
+      : [];
+  }, [selectedRecommendation?.routes_json]);
 
   const recommendedRoute =
     selectedRouteOptions.find((option) => option.is_recommended) ??
